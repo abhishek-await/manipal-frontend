@@ -15,6 +15,7 @@ export default function LoginForm() {
   const [method, setMethod] = useState<'SMS' | 'Whatsapp'>('SMS')
   const [otp, setOtp] = useState(['', '', '', ''])
   const [timeLeft, setTimeLeft] = useState(29)
+  const [googleLoading, setGoogleLoading] = useState(false)
 
   // start countdown when entering OTP step
   useEffect(() => {
@@ -72,7 +73,21 @@ export default function LoginForm() {
   }
 
   const handleOtpSubmit = (otp: string[]) => {
-    
+    //TODO: Verify-otp
+  }
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setGoogleLoading(true)
+      // If using NextAuth:
+      // await signIn('google', { callbackUrl: '/' })
+      // If using your own handler, route to it:
+      // router.push('/api/auth/google')
+      // For now, just demo:
+      console.log('Google Sign-In clicked')
+    } finally {
+      setGoogleLoading(false)
+    }
   }
 
   if (step === 'otp') {
@@ -232,6 +247,27 @@ export default function LoginForm() {
         disabled= {!(phone.length===10)}
       >
         Sign Up with OTP
+      </button>
+
+      <button
+        type="button"
+        onClick={handleGoogleSignIn}
+        disabled={googleLoading}
+        className="w-full max-w-md h-14 rounded-lg border border-[#034EA1]
+                   text-[#333333] bg-white flex items-center justify-center gap-3 mb-6
+                   disabled:opacity-60 disabled:cursor-not-allowed"
+        aria-label="Continue with Google"
+      >
+        <Image
+          src="/google-icon.svg"            // replace with your Google 'G' icon (32x32)
+          alt="Google"
+          width={32}
+          height={32}
+          priority
+        />
+        <span className="text-[16px] font-medium leading-[26px]">
+          {googleLoading ? 'Connecting…' : 'Continue with Google'}
+        </span>
       </button>
 
       {/* Footer */}

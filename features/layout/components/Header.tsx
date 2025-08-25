@@ -4,7 +4,6 @@ import HeaderMenu from './HeaderMenu'
 
 const Header = () => {
 
-  
 
   return (
     <div className='flex align-middle justify-between w-full h-17.5 '>

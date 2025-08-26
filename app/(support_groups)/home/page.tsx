@@ -1,9 +1,15 @@
-import React from 'react'
+"use client"
+
+import React, { useState } from 'react'
 import SupportGroupCard from '@/features/support_groups/components/Card'
+import SearchBar from '@/features/support_groups/components/SearchBar'
 
 const home = () => {
+
+  const [q,setQ] = useState("")
+
   return (
-    <div className="p-6">
+    <div className="p-6 flex flex-col">
       <SupportGroupCard
         title="Diabetes Support Group Whitefield"
         imageSrc="/images/group-thumb.png"
@@ -19,6 +25,12 @@ const home = () => {
           { src: '/avatars/jane.png', alt: 'Jane Rotanson' },
         ]}
         ctaText="Join Group"
+      />
+      <SearchBar 
+        value={q}
+        onChange={setQ}
+        onSubmit={() => console.log('Search', q)}
+        className=''
       />
     </div>
   )

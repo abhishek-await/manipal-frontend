@@ -3,48 +3,93 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { authApi, methodType } from '../api/auth.api'
 
-
-type Step = 'mobile' | 'otp'
+export type Step = 'mobile' | 'otp'
 
 export default function LoginForm() {
   const router = useRouter()
   const [step, setStep] = useState<Step>('mobile')
   const [phone, setPhone] = useState('')
-  const [method, setMethod] = useState<'SMS' | 'Whatsapp'>('SMS')
+  const [method, setMethod] = useState<methodType>('SMS')
   const [otp, setOtp] = useState(['', '', '', ''])
   const [timeLeft, setTimeLeft] = useState(29)
   const [googleLoading, setGoogleLoading] = useState(false)
 
-  // start countdown when entering OTP step
-  useEffect(() => {
-    if (step !== 'otp') return
-    setTimeLeft(29)
-    const iv = setInterval(() => {
+  // store interval id so we can clear it reliably
+  const timerRef = useRef<number | null>(null)
+
+  const stopTimer = () => {
+    if (timerRef.current !== null) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+  }
+
+  const startTimer = (initial = 29) => {
+    // ensure there's no existing interval
+    stopTimer()
+    setTimeLeft(initial)
+    timerRef.current = window.setInterval(() => {
       setTimeLeft((t) => {
         if (t <= 1) {
-          clearInterval(iv)
+          // stop when it reaches 0
+          stopTimer()
           return 0
         }
         return t - 1
       })
     }, 1000)
-    return () => clearInterval(iv)
+  }
+
+  // start countdown when entering OTP step (first time)
+  useEffect(() => {
+    if (step !== 'otp') return
+
+    // start timer when we land on otp step
+    startTimer(29)
+
+    // cleanup when leaving/unmounting
+    return () => stopTimer()
+    // keep dependency just on step — we use startTimer directly for resend
   }, [step])
 
-  const handleSendOTP = () => {
-    if (phone.length === 10) {
-      // TODO: call your SMS/WhatsApp API here
-      setStep('otp')
+  // If you want to cleanup on unmount explicitly as well
+  useEffect(() => {
+    return () => stopTimer()
+  }, [])
+
+  const handleSendOTP = async (phoneArg?: string, methodArg?: methodType) => {
+    const targetPhone = phoneArg ?? phone
+    const targetMethod = methodArg ?? method
+    if (targetPhone.length === 10) {
+      try {
+        const response = await authApi.sendOTP(targetPhone, targetMethod)
+        console.log('Response from handleSendOTP: ', response )
+        console.log(response.message)
+        setStep('otp')
+        // start timer immediately on send (defensive, in case step is already 'otp')
+        startTimer(29)
+      } catch (error) {
+        console.error('Error while sending otp', error)
+      }
     }
   }
 
-  const handleResendOTP = () => {
+  const handleResendOTP = async () => {
+    // only allow resend after timer finished
     if (timeLeft === 0) {
-      setOtp(['', '', '', ''])
-      setTimeLeft(29)
-      // TODO: re-fire your send OTP API
+      setOtp(['', '', '', '']) // clear inputs
+      try {
+        const response = await authApi.sendOTP(phone, method)
+        console.log(response.message)
+        setStep('otp') // keep UI in otp step
+        // restart timer explicitly (useful when step already 'otp')
+        startTimer(29)
+      } catch (error) {
+        console.error('Error while sending otp', error)
+      }
     }
   }
 
@@ -59,7 +104,6 @@ export default function LoginForm() {
       const el = document.getElementById(`otp-${idx + 1}`)
       el?.focus()
     }
-
   }
 
   const handleOtpKeyDown = (
@@ -72,18 +116,28 @@ export default function LoginForm() {
     }
   }
 
-  const handleOtpSubmit = (otp: string[]) => {
-    //TODO: Verify-otp
+  const handleOtpSubmit = async (otpArray?: string[]) => {
+    const currentOtp = otpArray ?? otp
+    try {
+      const response = await authApi.verifyOTP(phone, currentOtp)
+      console.log('Response from handleOtpSubmit: ', response )
+      if (!response.user_exists) {
+        setStep('mobile')
+      } else {
+        if (response.profile_complete) {
+          router.push('/home')
+        } else {
+          router.push(`/signup?token=${encodeURIComponent(response.verification_id)}`)
+        }
+      }
+    } catch (error) {
+      console.error(error)
+    }
   }
 
   const handleGoogleSignIn = async () => {
     try {
       setGoogleLoading(true)
-      // If using NextAuth:
-      // await signIn('google', { callbackUrl: '/' })
-      // If using your own handler, route to it:
-      // router.push('/api/auth/google')
-      // For now, just demo:
       console.log('Google Sign-In clicked')
     } finally {
       setGoogleLoading(false)
@@ -239,7 +293,7 @@ export default function LoginForm() {
 
       {/* Sign Up Button */}
       <button
-        onClick={handleSendOTP}
+        onClick={() => handleSendOTP()}
         className={`w-full max-w-md h-14 rounded-lg ${
                    phone.length === 10 ?
                    'bg-gradient-to-r from-blue-900 to-teal-400  text-white' : 'bg-[#D2D5DB] text-[#686969]'}

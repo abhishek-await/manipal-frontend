@@ -6,7 +6,8 @@ import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { signupSchema, type SignupFormData } from '@/features/auth/validation/signup.schema'
 import { useState, useEffect } from 'react'
-// import { useRouter } from 'next/navigation' // optional redirect on continue
+import { authApi } from '../api/auth.api'
+import { useRouter } from 'next/navigation'
 
 // Utility: live-format DD/MM/YYYY while typing
 function formatDOB(input: string) {
@@ -16,7 +17,8 @@ function formatDOB(input: string) {
   return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}` // DD/MM/YYYY
 }
 
-export default function SignUpForm() {
+export default function SignUpForm(token: string) {
+
   const {
     register,
     handleSubmit,
@@ -41,7 +43,7 @@ export default function SignUpForm() {
 
   const [showSuccess, setShowSuccess] = useState(false)
   const hasReferralCode = watch('hasReferralCode')
-  // const router = useRouter()
+  const router = useRouter()
 
   useEffect(() => {
     void trigger()
@@ -58,9 +60,16 @@ export default function SignUpForm() {
   }, [showSuccess])
 
   const onSubmit = async (data: SignupFormData) => {
-    // Simulate success (no API)
-    console.log('Signup payload:', data)
-    setShowSuccess(true)
+    try {
+      const response = await authApi.signup(data, token)
+
+      // Simulate success (no API)
+      console.log('Signup payload:', data)
+      setShowSuccess(true)
+
+    } catch (error) {
+      console.error("Error SigningUp User: ", error)
+    }
   }
 
   const canSubmit = isValid && !isSubmitting
@@ -275,7 +284,7 @@ export default function SignUpForm() {
 
             <button
               type="button"
-              onClick={() => setShowSuccess(false)}
+              onClick={() => router.push('/home')}
               className="w-full h-[54px] rounded-[8px] bg-gradient-to-r from-[#18448A] to-[#16AF9F]
                         text-white text-[16px] leading-[26px] font-medium"
             >

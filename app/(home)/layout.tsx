@@ -1,12 +1,14 @@
+
+
 import Header from "@/features/layout/components/Header";
 import Footer from "@/features/layout/components/Footer";
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       {/* fixed header (keeps header visible) */}
       <div className="top-0 left-0 w-full z-50 bg-white/100">
-        <Header showMenu={false} />
+        <Header />
       </div>
 
       {/* page content — pad top so header doesn't overlap */}

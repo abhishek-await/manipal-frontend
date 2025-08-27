@@ -1,4 +1,3 @@
-// src/components/SupportGroupCard.tsx
 'use client'
 
 import Image from 'next/image'
@@ -7,6 +6,7 @@ import clsx from 'clsx'
 type Avatar = { src: string; alt?: string }
 
 export type SupportGroupCardProps = {
+  id: string
   // main
   title: string
   imageSrc: string

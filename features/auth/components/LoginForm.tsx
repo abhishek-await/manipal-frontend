@@ -125,6 +125,8 @@ export default function LoginForm() {
         setStep('mobile')
       } else {
         if (response.profile_complete) {
+          localStorage.setItem('access_token', response.tokens.access)
+          localStorage.setItem('refresh_token', response.tokens.refresh)
           router.push('/home')
         } else {
           router.push(`/signup?token=${encodeURIComponent(response.verification_id)}`)

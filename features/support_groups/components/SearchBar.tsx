@@ -12,6 +12,8 @@ type SearchBarProps = {
   autoFocus?: boolean
   disabled?: boolean
   className?: string
+  onClick?: (e: React.MouseEvent<HTMLInputElement>) => void
+  onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void
 }
 
 function cx(...cls: Array<string | false | null | undefined>) {
@@ -27,6 +29,8 @@ export default function SearchBar({
   autoFocus,
   disabled,
   className,
+  onClick,
+  onFocus,
 }: SearchBarProps) {
   return (
     <form
@@ -57,6 +61,8 @@ export default function SearchBar({
         disabled={disabled}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onClick={onClick}
+        onFocus={onFocus}
         className="h-full w-full bg-transparent outline-none
                    pl-11 pr-3
                    text-[14px] leading-[17px] font-medium

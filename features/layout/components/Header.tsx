@@ -1,19 +1,24 @@
-import React from 'react'
-import { useHeaderStore } from '../store/layout.store'
-import HeaderMenu from './HeaderMenu'
+import React from "react";
+import HeaderMenu from "./HeaderMenu";
 
-const Header = () => {
-
-
+export default function Header({ showMenu = true }: { showMenu?: boolean }) {
   return (
-    <div className='flex align-middle justify-between w-full h-17.5 '>
-      <div className='pt-2.5 pl-6'>
-        <div className='w-24 h-12'>
-          <img src="/logo_1.svg" alt="manipal community connect logo" />
+    <header className="h-[69px] w-full flex items-center justify-between px-6 bg-white">
+      {/* left: logo */}
+      <div className="flex items-center gap-3">
+        <div className="w-24 h-12">
+          <img
+            src="/logo_1.svg"
+            alt="Manipal Community Connect logo"
+            className="w-full h-full object-contain"
+          />
         </div>
       </div>
-    </div>
-  )
-}
 
-export default Header
+      {/* right: header menu icon (kept separate component) */}
+      <div className="flex items-center">
+        {showMenu && <HeaderMenu />}
+      </div>
+    </header>
+  );
+}

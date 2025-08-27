@@ -1,12 +1,7 @@
-import LoginForm from '@/features/auth/components/LoginForm'
-import React from 'react'
+import { redirect } from 'next/navigation'
 
 const page = () => {
-  return (
-    <h1 className="text-3xl font-bold underline">
-      Hello world!
-    </h1>
-  )
+  redirect('/home')
 }
 
 export default page

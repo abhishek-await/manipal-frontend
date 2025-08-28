@@ -2,10 +2,10 @@
 
 import Image from 'next/image'
 import clsx from 'clsx'
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 type Avatar = { src: string; alt?: string }
-
 
 export type SupportGroupCardProps = {
   id: string
@@ -16,32 +16,36 @@ export type SupportGroupCardProps = {
   description: string
 
   // meta
-  rating?: number        // e.g., 4.9
-  reviews?: number       // e.g., 345
-  updatedText: string   // e.g., "Updated 2 hours ago"
+  rating?: number
+  reviews?: number
+  updatedText: string
 
   // counts
-  members?: number       // e.g., 1850
-  experts?: number       // e.g., 12
+  members?: number
+  experts?: number
 
   // avatars shown to the right of rating row
-  avatars?: Avatar[]     // pass up to 3–4
+  avatars?: Avatar[]
 
   // CTA
-  ctaText?: string       // default: "Join Group"
+  ctaText?: string
   onJoin?: () => void
+  onLeave?: () => void
   ctaDisabled?: boolean
 
   category?: {
-    id: string,
-    name: string,
+    id: string
+    name: string
     description?: string
   }
 
+  isMember?: boolean
+
   totalPosts?: number
   growthPercentage?: number
+
   // layout
-  className?: string     // to override wrapper width/margins if needed
+  className?: string
 }
 
 function timeAgo(dateString: string): string {
@@ -49,17 +53,16 @@ function timeAgo(dateString: string): string {
   const now = new Date()
   const diff = (now.getTime() - date.getTime()) / 1000 // seconds
 
-  // console.log("diff", diff)
-
-  if (diff < 60) return "just now"
+  if (diff < 60) return 'just now'
   if (diff < 3600) return `${Math.floor(diff / 60)} min ago`
   if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`
   if (diff < 2592000) return `${Math.floor(diff / 86400)} days ago`
 
-  return date.toLocaleDateString() // fallback to absolute date
+  return date.toLocaleDateString()
 }
 
 export default function SupportGroupCard({
+  id,
   title,
   imageSrc,
   imageAlt = 'Group image',
@@ -72,13 +75,16 @@ export default function SupportGroupCard({
   avatars = [],
   ctaText = 'Join Group',
   onJoin,
+  onLeave,
   ctaDisabled = false,
   className,
-  category
+  category,
+  isMember=false,
 }: SupportGroupCardProps) {
+  const router = useRouter()
+
   // format numbers like 1,850
-  const fmt = (n?: number) =>
-    typeof n === 'number' ? new Intl.NumberFormat('en-IN').format(n) : undefined
+  const fmt = (n?: number) => (typeof n === 'number' ? new Intl.NumberFormat('en-IN').format(n) : undefined)
 
   const shownAvatars = avatars.slice(0, 3)
 
@@ -86,72 +92,71 @@ export default function SupportGroupCard({
 
   useEffect(() => {
     if (!updatedText) return
-    // compute immediately after mount so first client paint matches server (if any)
     setFormattedUpdatedText(timeAgo(updatedText))
 
-    // optional: update periodically so "x min ago" stays accurate
-    const id = setInterval(() => {
+    const idt = setInterval(() => {
       setFormattedUpdatedText(timeAgo(updatedText))
-    }, 60_000) // every minute
+    }, 60_000)
 
-    return () => clearInterval(id)
+    return () => clearInterval(idt)
   }, [updatedText])
+
+  // navigate when card is clicked (except join button which stops propagation)
+  const navigateToGroup = () => {
+    // use absolute route matching your app folder
+    router.push(`/group/${id}`)
+  }
+
+  const buttonLabel = isMember ? 'Leave Group' : ctaText ?? 'Join Group'
+  const buttonHandler = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (isMember) {
+      onLeave?.()
+    } else {
+      onJoin?.()
+    }
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      navigateToGroup()
+    }
+  }
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={navigateToGroup}
+      onKeyDown={onKeyDown}
       className={clsx(
         'w-[342px] h-[275px] rounded-[12px] border border-[#E5E7EB] bg-white p-4',
+        'focus:outline-none focus:ring-2 focus:ring-[#16AF9F] cursor-pointer',
         className
       )}
     >
       {/* Top: Image + Title */}
       <div className="flex gap-4">
         <div className="shrink-0">
-          <Image
-            src={imageSrc}
-            alt={imageAlt}
-            width={64}
-            height={64}
-            className="rounded-[8px] object-cover"
-          />
+          <Image src={imageSrc} alt={imageAlt} width={64} height={64} className="rounded-[8px] object-cover" />
         </div>
         <div className="min-w-0">
-          <h3 className="text-[16px] leading-[22px] font-bold text-[#18448A] line-clamp-2">
-            {title}
-          </h3>
+          <h3 className="text-[16px] leading-[22px] font-bold text-[#18448A] line-clamp-2">{title}</h3>
 
           {/* Rating + Reviews + Avatars */}
           <div className="mt-2 flex items-center">
-            {/* Star */}
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              className="text-[#F4AA08] shrink-0"
-              fill="currentColor"
-              aria-hidden="true"
-            >
+            <svg width="16" height="16" viewBox="0 0 24 24" className="text-[#F4AA08] shrink-0" fill="currentColor" aria-hidden="true">
               <path d="M12 .587l3.668 7.57L24 9.748l-6 5.857 1.416 8.262L12 19.771l-7.416 4.096L6 15.605 0 9.748l8.332-1.591L12 .587z" />
             </svg>
-            <span className="ml-2 text-[14px] leading-[22px] font-bold text-[#333333]">
-              {rating.toFixed(1)}
-            </span>
-            <span className="ml-2 text-[12px] leading-[18px] tracking-[-0.02em] text-[#54555A]">
-              ({fmt(reviews)})
-            </span>
+            <span className="ml-2 text-[14px] leading-[22px] font-bold text-[#333333]">{rating.toFixed(1)}</span>
+            <span className="ml-2 text-[12px] leading-[18px] tracking-[-0.02em] text-[#54555A]">({fmt(reviews)})</span>
 
-            {/* Avatars stacked to right */}
             {shownAvatars.length > 0 && (
               <div className="ml-auto flex -space-x-2">
                 {shownAvatars.map((a, i) => (
                   <div key={i} className="h-[23.22px] w-[23.22px] rounded-full ring-2 ring-white overflow-hidden">
-                    <Image
-                      src={a.src}
-                      alt={a.alt ?? `Member ${i + 1}`}
-                      width={24}
-                      height={24}
-                      className="h-full w-full object-cover"
-                    />
+                    <Image src={a.src} alt={a.alt ?? `Member ${i + 1}`} width={24} height={24} className="h-full w-full object-cover" />
                   </div>
                 ))}
               </div>
@@ -161,52 +166,24 @@ export default function SupportGroupCard({
           {/* Updated text */}
           {formattedUpdatedText && (
             <div className="mt-1 flex items-center text-[#54555A]">
-              {/* Clock */}
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                className="text-[#54555A]"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
+              <svg width="18" height="18" viewBox="0 0 24 24" className="text-[#54555A]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="10"></circle>
                 <path d="M12 6v6l4 2"></path>
               </svg>
-              <span className="ml-2 text-[12px] leading-[15px] font-medium">
-                {formattedUpdatedText}
-              </span>
+              <span className="ml-2 text-[12px] leading-[15px] font-medium">{formattedUpdatedText}</span>
             </div>
           )}
         </div>
       </div>
 
       {/* Description */}
-      <p className="mt-4 text-[14px] leading-[22px] text-[#54555A] line-clamp-3">
-        {description}
-      </p>
+      <p className="mt-4 text-[14px] leading-[22px] text-[#54555A] line-clamp-3">{description}</p>
 
       {/* Stats row */}
       <div className="mt-3 flex items-center gap-6 text-[#54555A]">
-        {/* Members */}
         {typeof members === 'number' && (
           <div className="flex items-center">
-            {/* Users icon */}
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#54555A"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#54555A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
               <circle cx="9" cy="7" r="4"></circle>
               <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
@@ -216,21 +193,9 @@ export default function SupportGroupCard({
           </div>
         )}
 
-        {/* Experts */}
         {typeof experts === 'number' && (
           <div className="flex items-center">
-            {/* Another users icon (can swap to badge/verified icon if desired) */}
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#54555A"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#54555A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
               <circle cx="9" cy="7" r="4"></circle>
               <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
@@ -244,14 +209,16 @@ export default function SupportGroupCard({
       {/* CTA */}
       <button
         type="button"
+        onClick={buttonHandler}
+        onMouseDown={(e) => e.stopPropagation()}
         disabled={ctaDisabled}
-        onClick={onJoin}
         className={clsx(
           'mt-4 h-11 w-full rounded-[8px] text-white text-[14px] font-medium',
-          ctaDisabled ? 'bg-[#9AA6B2] cursor-not-allowed' : 'bg-[#18448A]'
+          ctaDisabled ? 'bg-[#9AA6B2] cursor-not-allowed' : (isMember ? 'bg-[#E53E3E]' : 'bg-[#18448A]')
         )}
+        aria-label={buttonLabel}
       >
-        {ctaText}
+        {buttonLabel}
       </button>
     </div>
   )

@@ -63,8 +63,7 @@ export default function SignUpForm(token: string) {
     try {
       const response = await authApi.signup(data, token)
       // console.log('Signup payload:', data)
-      localStorage.setItem('access_token', response.access)
-      localStorage.setItem('refresh_token', response.refresh)
+      authApi.saveTokens(response.tokens.access,response.tokens.refresh)
       setShowSuccess(true)
 
     } catch (error) {

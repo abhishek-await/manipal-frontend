@@ -8,6 +8,8 @@ import Image from 'next/image'
 import ChipCarouselEmbla, { ChipItem } from '@/features/support_groups/components/ChipCarousel'
 import { SupportGroupCardProps as Card } from '@/features/support_groups/components/Card'
 import { useRouter } from 'next/navigation'
+import { groupApi } from './api/group.api'
+import { authApi } from '../auth/api/auth.api'
 
 const PAGE_SIZE = 4
 
@@ -58,6 +60,127 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
   const displayedGroups = useMemo(() => visibleGroups.slice(0, visibleCount), [visibleGroups, visibleCount])
   const handleLoadMore = () => setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, visibleGroups.length))
   const allLoaded = visibleCount >= visibleGroups.length
+
+  const [currentUser, setCurrentUser] = useState<any | null>(null)
+  // map of groupId -> boolean
+  const [membershipMap, setMembershipMap] = useState<Record<string, boolean>>({})
+
+  // load current user once
+  useEffect(() => {
+    let mounted = true
+    async function fetchUser() {
+      try {
+        const u = await authApi.getCurrentUser()
+        if (mounted) setCurrentUser(u)
+      } catch (e) {
+        if (mounted) setCurrentUser(null)
+      }
+    }
+    fetchUser()
+    return () => { mounted = false }
+  }, [])
+
+  // whenever displayedGroups change, check membership only for those groups
+  useEffect(() => {
+    let mounted = true
+    if (!displayedGroups || displayedGroups.length === 0) return
+
+    // if no logged in user, membership false for all
+    if (!currentUser) {
+      // ensure map has false for those ids
+      setMembershipMap((prev) => {
+        const copy = { ...prev }
+        displayedGroups.forEach((g) => { if (copy[g.id] === undefined) copy[g.id] = false })
+        return copy
+      })
+      return
+    }
+
+    // check membership for each displayed group (do in parallel)
+    (async () => {
+      const checks = displayedGroups.map(async (g) => {
+        try {
+          const members = await groupApi.listMembers(g.id)
+          // members expected array of user objects with "id" field
+          const isMember = Array.isArray(members) && members.some((m: any) => String(m.id) === String(currentUser.id))
+          return { id: g.id, isMember }
+        } catch (err) {
+          // failure => treat as not member
+          return { id: g.id, isMember: false }
+        }
+      })
+
+      const results = await Promise.all(checks)
+      if (!mounted) return
+      setMembershipMap((prev) => {
+        const copy = { ...prev }
+        results.forEach((r) => (copy[r.id] = r.isMember))
+        return copy
+      })
+    })()
+
+    return () => { mounted = false }
+  }, [displayedGroups, currentUser])
+
+  // ----- join / leave handlers -----
+  const handleJoin = async (groupId: string) => {
+    // if not logged in -> redirect to login with next
+    if (!currentUser) {
+      router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`)
+      return
+    }
+
+    // optimistic update: set member true and increment members count
+    setMembershipMap((m) => ({ ...m, [groupId]: true }))
+    setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, members: (g.members ?? 0) + 1 } : g))
+
+    try {
+      await groupApi.joinGroup(groupId)
+      // success: nothing else to do (state already optimistic)
+    } catch (err: any) {
+      // rollback
+      setMembershipMap((m) => ({ ...m, [groupId]: false }))
+      setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, members: Math.max((g.members ?? 1) - 1, 0) } : g))
+
+      // if unauthorized, clear tokens and redirect to login
+      if (err?.message?.toLowerCase().includes('unauthorized')) {
+        authApi.clearTokens?.()
+        router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`)
+        return
+      }
+
+      console.error('Join failed', err)
+      // TODO: show toast / UI error
+    }
+  }
+
+  const handleLeave = async (groupId: string) => {
+    if (!currentUser) {
+      router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`)
+      return
+    }
+
+    // optimistic update: mark false and decrement
+    setMembershipMap((m) => ({ ...m, [groupId]: false }))
+    setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, members: Math.max((g.members ?? 1) - 1) } : g))
+
+    try {
+      await groupApi.leaveGroup(groupId)
+    } catch (err: any) {
+      // rollback
+      setMembershipMap((m) => ({ ...m, [groupId]: true }))
+      setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, members: (g.members ?? 0) + 1 } : g))
+
+      if (err?.message?.toLowerCase().includes('unauthorized')) {
+        authApi.clearTokens?.()
+        router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`)
+        return
+      }
+
+      console.error('Leave failed', err)
+      // TODO: show toast / UI error
+    }
+  }
 
   // UI (you can copy your page's JSX here; I include the core rendering pieces)
   return (
@@ -114,7 +237,13 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
             <div className="mt-4 space-y-4">
               {displayedGroups.length === 0 && <div className="text-sm text-[#54555A]">No groups found.</div>}
               {displayedGroups.map((c) => (
-                <SupportGroupCard key={c.id} {...c} />
+                <SupportGroupCard
+                  key={c.id}
+                  {...c}
+                  isMember={!!membershipMap[c.id]}
+                  onJoin={() => handleJoin(c.id)}
+                  onLeave={() => handleLeave(c.id)}
+                />
               ))}
             </div>
 

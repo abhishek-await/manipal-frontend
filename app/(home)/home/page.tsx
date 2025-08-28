@@ -62,8 +62,8 @@ export default async function Page() {
 
   // If apiGroups already include category, use them directly for chips/stats.
   // Otherwise fetch raw objects from backend only for building chips/stats.
-  const rawFallback = await fetchRawGroupsIfNeeded(apiGroups)
-  const sourceForAgg = rawFallback ?? apiGroups
+  // const rawFallback = await fetchRawGroupsIfNeeded(apiGroups)
+  const sourceForAgg = apiGroups
 
   const chipItems = Array.isArray(sourceForAgg) ? buildChipItemsFromGroups(sourceForAgg) : []
   const stats = Array.isArray(sourceForAgg) ? buildStatsFromGroups(sourceForAgg) : {

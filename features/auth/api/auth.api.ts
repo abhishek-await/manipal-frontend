@@ -6,6 +6,11 @@ export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export type methodType = 'SMS' | 'Whatsapp'
 
+const ACCESS_KEY = 'accessToken'
+const REFRESH_KEY = 'refreshToken'
+
+type Tokens = { access: string | null; refresh: string | null }
+
 export const authApi = {
   // Send OTP
   sendOTP: async (mobileNumber: string, method: methodType) => {
@@ -86,4 +91,117 @@ export const authApi = {
 
     return response.json();
   },
+
+  saveTokens: (access: string, refresh: string) => {
+    try {
+      localStorage.setItem(ACCESS_KEY, access)
+      localStorage.setItem(REFRESH_KEY, refresh)
+    } catch (e) {
+      console.warn('Could not save tokens to localStorage', e)
+    }
+  },
+
+  clearTokens: () => {
+    try {
+      localStorage.removeItem(ACCESS_KEY)
+      localStorage.removeItem(REFRESH_KEY)
+    } catch (e) {
+      console.warn('Could not clear tokens', e)
+    }
+  },
+
+  getTokens: () : Tokens  => {
+    try {
+      return {
+        access: localStorage.getItem(ACCESS_KEY),
+        refresh: localStorage.getItem(REFRESH_KEY),
+      }
+    } catch (e) {
+      return { access: null, refresh: null }
+    }
+  },
+
+  refreshAccessToken: async (): Promise<{ access: string; refresh?: string } | null> => {
+    const { refresh } = authApi.getTokens()
+    if (!refresh) return null
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/token/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh }),
+      })
+
+      if (!res.ok) {
+        // refresh failed (expired/invalid refresh)
+        authApi.clearTokens()
+        return null
+      }
+
+      const data = await res.json()
+      // typical response { access: "...", refresh?: "..." }
+      if (data.access) {
+        // save new tokens if refresh returned them
+        const newAccess = data.access
+        const newRefresh = data.refresh ?? refresh
+        authApi.saveTokens(newAccess, newRefresh)
+        return { access: newAccess, refresh: data.refresh }
+      }
+
+      return null
+    } catch (err) {
+      console.error('refreshAccessToken error', err)
+      authApi.clearTokens()
+      return null
+    }
+  },
+
+  fetchWithAuth: async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const { access } = authApi.getTokens()
+
+    const baseInit: RequestInit = {
+      ...init,
+      headers: {
+        ...(init?.headers ?? {}),
+        'Content-Type': (init?.headers as any)?.['Content-Type'] ?? 'application/json',
+        ...(access ? { Authorization: `Bearer ${access}` } : {}),
+      },
+    }
+
+    let response = await fetch(input, baseInit)
+
+    // if auth failed, attempt a refresh and retry once
+    if (response.status === 401) {
+      const refreshed = await authApi.refreshAccessToken()
+      if (refreshed?.access) {
+        const retryInit = {
+          ...init,
+          headers: {
+            ...(init?.headers ?? {}),
+            'Content-Type': (init?.headers as any)?.['Content-Type'] ?? 'application/json',
+            Authorization: `Bearer ${refreshed.access}`,
+          },
+        }
+        response = await fetch(input, retryInit)
+      } else {
+        // refresh failed -> no tokens
+        throw new Error('Unauthorized')
+      }
+    }
+
+    return response
+  },
+
+  getCurrentUser: async (): Promise<any | null> => {
+    try {
+      const meEndpoint = `${API_BASE_URL}/accounts/user`
+      const res = await authApi.fetchWithAuth(meEndpoint, { method: 'GET' })
+      if (!res.ok) {
+        return null
+      }
+      return await res.json()
+    } catch (e) {
+      return null
+    }
+  }
 };

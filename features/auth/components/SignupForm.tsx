@@ -61,7 +61,7 @@ export default function SignUpForm(token: string) {
 
   const onSubmit = async (data: SignupFormData) => {
     try {
-      const response = await authApi.signup(data, {token})
+      const response = await authApi.signup(data, token)
       // console.log('Signup payload:', data)
       localStorage.setItem('access_token', response.access)
       localStorage.setItem('refresh_token', response.refresh)

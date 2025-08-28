@@ -4,89 +4,108 @@ import { SupportGroupCardProps as Card } from '@/features/support_groups/compone
 import { useState } from 'react';
 import Image from 'next/image';
 import SearchBar from '@/features/support_groups/components/SearchBar';
-import SupportGroupCard from '@/features/support_groups/components/Card'
-import { routerServerGlobal } from 'next/dist/server/lib/router-utils/router-server-context';
+import SupportGroupCard from '@/features/support_groups/components/Card';
 import { useRouter } from 'next/navigation';
 
-
 const cards: Card[] = [
-    {
-      id: "1",
-      title: 'Diabetes Support Group Whitefield',
-      rating: 4.9,
-      reviews: 345,
-      updatedText: 'Updated 2 hours ago',
-      description: 'A supportive community for people managing diabetes in the Whitefield area.',
-      members: 1850,
-      experts: 12,
-      imageSrc: '/images/group-thumb.png',
-      avatars: [
-          { src: '/avatars/omar.png', alt: 'Omar Darboe' },
-          { src: '/avatars/fran.png', alt: 'Fran Perez' },
-          { src: '/avatars/jane.png', alt: 'Jane Rotanson' },
-        ],
-      ctaText: 'Join Group',
-    },
-    {
-      id: "2",
-      title: 'Diabetes Support Group Whitefield',
-      rating: 4.9,
-      reviews: 345,
-      updatedText: 'Updated 2 hours ago',
-      description: 'A supportive community for people managing diabetes in the Whitefield area.',
-      members: 1850,
-      experts: 12,
-      imageSrc: '/images/group-thumb.png',
-      avatars: [
-          { src: '/avatars/omar.png', alt: 'Omar Darboe' },
-          { src: '/avatars/fran.png', alt: 'Fran Perez' },
-          { src: '/avatars/jane.png', alt: 'Jane Rotanson' },
-        ],
-      ctaText: 'Join Group',
-    },
-    {
-      id: "3",
-      title: 'Diabetes Support Group Whitefield',
-      rating: 4.9,
-      reviews: 345,
-      updatedText: 'Updated 2 hours ago',
-      description: 'A supportive community for people managing diabetes in the Whitefield area.',
-      members: 1850,
-      experts: 12,
-      imageSrc: '/images/group-thumb.png',
-      avatars: [
-          { src: '/avatars/omar.png', alt: 'Omar Darboe' },
-          { src: '/avatars/fran.png', alt: 'Fran Perez' },
-          { src: '/avatars/jane.png', alt: 'Jane Rotanson' },
-        ],
-      ctaText: 'Join Group',
-    },
-    {
-      id: "4",
-      title: 'Diabetes Support Group Whitefield',
-      rating: 4.9,
-      reviews: 345,
-      updatedText: 'Updated 2 hours ago',
-      description: 'A supportive community for people managing diabetes in the Whitefield area.',
-      members: 1850,
-      experts: 12,
-      imageSrc: '/images/group-thumb.png',
-      avatars: [
-          { src: '/avatars/omar.png', alt: 'Omar Darboe' },
-          { src: '/avatars/fran.png', alt: 'Fran Perez' },
-          { src: '/avatars/jane.png', alt: 'Jane Rotanson' },
-        ],
-      ctaText: 'Join Group',
-    },
+  {
+    id: "1",
+    title: 'Diabetes Support Group Whitefield',
+    rating: 4.9,
+    reviews: 345,
+    updatedText: 'Updated 2 hours ago',
+    description: 'A supportive community for people managing diabetes in the Whitefield area.',
+    members: 1850,
+    experts: 12,
+    imageSrc: '/images/group-thumb.png',
+    avatars: [
+      { src: '/avatars/omar.png', alt: 'Omar Darboe' },
+      { src: '/avatars/fran.png', alt: 'Fran Perez' },
+      { src: '/avatars/jane.png', alt: 'Jane Rotanson' },
+    ],
+    ctaText: 'Join Group',
+  },
+  {
+    id: "2",
+    title: 'Diabetes Support Group Whitefield',
+    rating: 4.9,
+    reviews: 345,
+    updatedText: 'Updated 2 hours ago',
+    description: 'A supportive community for people managing diabetes in the Whitefield area.',
+    members: 1850,
+    experts: 12,
+    imageSrc: '/images/group-thumb.png',
+    avatars: [
+      { src: '/avatars/omar.png', alt: 'Omar Darboe' },
+      { src: '/avatars/fran.png', alt: 'Fran Perez' },
+      { src: '/avatars/jane.png', alt: 'Jane Rotanson' },
+    ],
+    ctaText: 'Join Group',
+  },
+  {
+    id: "3",
+    title: 'Diabetes Support Group Whitefield',
+    rating: 4.9,
+    reviews: 345,
+    updatedText: 'Updated 2 hours ago',
+    description: 'A supportive community for people managing diabetes in the Whitefield area.',
+    members: 1850,
+    experts: 12,
+    imageSrc: '/images/group-thumb.png',
+    avatars: [
+      { src: '/avatars/omar.png', alt: 'Omar Darboe' },
+      { src: '/avatars/fran.png', alt: 'Fran Perez' },
+      { src: '/avatars/jane.png', alt: 'Jane Rotanson' },
+    ],
+    ctaText: 'Join Group',
+  },
+  {
+    id: "4",
+    title: 'Diabetes Support Group Whitefield',
+    rating: 4.9,
+    reviews: 345,
+    updatedText: 'Updated 2 hours ago',
+    description: 'A supportive community for people managing diabetes in the Whitefield area.',
+    members: 1850,
+    experts: 12,
+    imageSrc: '/images/group-thumb.png',
+    avatars: [
+      { src: '/avatars/omar.png', alt: 'Omar Darboe' },
+      { src: '/avatars/fran.png', alt: 'Fran Perez' },
+      { src: '/avatars/jane.png', alt: 'Jane Rotanson' },
+    ],
+    ctaText: 'Join Group',
+  },
 ];
 
-function useSearch(query:string, {debounceMs, limit} : {debounceMs: number, limit: number}){
-    console.log(`Got search query with payload: query: ${query}, limit: ${limit}, debounceMs: ${debounceMs}`)
+function useSearch(query: string, { debounceMs, limit }: { debounceMs: number, limit: number }) {
+  console.log(`Got search query with payload: query: ${query}, limit: ${limit}, debounceMs: ${debounceMs}`)
+  // replace with real search call
+  if(query==="asdf"){
     return {
-        results: cards.slice(0,2),
-        total: 2,
-        loading: false
+      results: [],
+      total: 2,
+      loading: false
     }
+  } else {
+    return {
+      results: cards.slice(0,2),
+      total: 2,
+      loading: false
+    }
+  }
+}
+
+/* ---------- No results card (matches your rectangle CSS) ---------- */
+function NoResultsCard({ query }: { query: string }) {
+  return (
+    <div className="w-full max-w-[342px] mx-auto bg-[#F7F7F7] rounded-[12px] p-6 flex flex-col items-center text-center">
+      {/* inline SVG icon (simple people/group icon) */}
+      <Image src='/no-results.svg' alt="no results icon" width={48} height={48} fill={false} aria-hidden className="mb-2 opacity-60" />
+
+      <div className="text-[20px] font-medium text-[#333333]">No Group Found</div>
+    </div>
+  )
 }
 
 export default function SearchPage() {
@@ -94,24 +113,24 @@ export default function SearchPage() {
   const [query, setQuery] = useState('');
   const q = query.trim();
   const isSearching = q.length > 0;
-  const router = useRouter()
+  const router = useRouter();
 
   const { results, total, loading } = useSearch(q, { debounceMs: 350, limit: 2 });
   const list = isSearching ? results : trending;
 
+  // show trending groups also when there are no results for the search
+  const noResults = !loading && isSearching && results.length === 0;
+
   return (
-    <main className="min-h-screen w-full bg-white flex justify-center">
-      {/* match 375px width design */}
-      <div className="w-full max-w-[375px] px-4 pb-[max(24px,env(safe-area-inset-bottom))]">
+    <main className="min-h-screen w-full bg-white flex justify-center items-start">
+      <div className="w-full max-w-[375px] px-4 pb-[max(24px,env(safe-area-inset-bottom))] mx-auto">
         {/* Back + Search */}
         <div className="flex items-center gap-3 pt-4">
-          <button type="button" aria-label="Back" className="h-4 w-4 flex-shrink-0" onClick={() => router.push('/home')}>
-            <img src="/arrow-left.svg" alt="Back" className="h-4 w-4 object-contain" />
+          <button type="button" aria-label="Back" className="h-6 w-6 flex-shrink-0" onClick={() => router.back()}>
+            <img src="/arrow-left.svg" alt="Back" className="h-6 w-6 object-contain" />
           </button>
 
           <div className="relative flex-1">
-            {/* If your SearchBar is controlled: pass value/onChange.
-               If it's uncontrolled, remove these props and wire inside the component. */}
             <SearchBar
               value={query}
               onChange={(val: string) => setQuery(val)}
@@ -130,18 +149,12 @@ export default function SearchPage() {
           </div>
         </div>
 
-        {/* Title */}
-        {!isSearching ? (
-          <h2 className="mt-6 text-[16px] leading-6 font-medium text-[#333333]">
-            Top trending support groups
-          </h2>
-        ) : (
-          <h2 className="mt-6 text-[16px] leading-6 font-medium text-[#333333]">
-            {loading ? 'Searching…' : `Showing “${q}” support groups${total ? ` (${total})` : ''}`}
-          </h2>
-        )}
+        {/* Top heading: shows "Showing..." while searching */}
+        <h2 className="mt-6 text-[16px] leading-6 font-medium text-[#333333]">
+          {!isSearching ? 'Top trending support groups' : (loading ? 'Searching…' : `Showing “${q}” support groups${typeof total === 'number' ? ` (${total})` : ''}`)}
+        </h2>
 
-        {/* Results */}
+        {/* Results area */}
         <div className="mt-4 space-y-4">
           {loading && (
             <>
@@ -150,14 +163,23 @@ export default function SearchPage() {
             </>
           )}
 
-          {!loading && list.length === 0 && isSearching && (
-            <div className="rounded-lg border border-[#E5E7EB] p-4 text-sm text-[#54555A]">
-              No groups found for “{q}”.
-            </div>
+          {/* No results card (centered) */}
+          {noResults && <NoResultsCard query={q} />}
+
+          {/* If no results, still show "Top trending support groups" subheading (like the screenshot) */}
+          {noResults && (
+            <h3 className="mt-6 text-[16px] leading-6 font-medium text-[#333333]">Top trending support groups</h3>
           )}
 
-          {!loading &&
-            list.map((c) => <SupportGroupCard key={c.id} {...c} />)}
+          {/* Render either search results (if present) or trending list */}
+          {!loading && (
+            <>
+              {isSearching
+                ? (results.length > 0 ? results.map((c) => <SupportGroupCard key={c.id} {...c} />) : trending.map((c) => <SupportGroupCard key={`trending-${c.id}`} {...c} />))
+                : trending.map((c) => <SupportGroupCard key={c.id} {...c} />)
+              }
+            </>
+          )}
         </div>
 
         <div className="h-6" />

@@ -39,7 +39,7 @@ export default function SearchBar({
         e.preventDefault()
         onSubmit?.()
       }}
-      className={cx('relative w-[342px] h-[52px]', className)}
+      className={cx('relative w-full h-[52px]', className)}
     >
       {/* Border + radius per spec */}
       <div className="absolute inset-0 rounded-[8px] border border-[#16AF9F] pointer-events-none" />

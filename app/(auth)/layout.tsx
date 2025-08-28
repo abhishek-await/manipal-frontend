@@ -1,5 +1,4 @@
 import Header from "@/features/layout/components/Header";
-import Footer from "@/features/layout/components/Footer";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -15,7 +14,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           {children}
         </div>
 
-        <Footer />
       </main>
     </>
   );

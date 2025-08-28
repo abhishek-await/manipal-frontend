@@ -2,8 +2,10 @@
 
 import Image from 'next/image'
 import clsx from 'clsx'
+import { useEffect, useState } from 'react';
 
 type Avatar = { src: string; alt?: string }
+
 
 export type SupportGroupCardProps = {
   id: string
@@ -16,7 +18,7 @@ export type SupportGroupCardProps = {
   // meta
   rating?: number        // e.g., 4.9
   reviews?: number       // e.g., 345
-  updatedText?: string   // e.g., "Updated 2 hours ago"
+  updatedText: string   // e.g., "Updated 2 hours ago"
 
   // counts
   members?: number       // e.g., 1850
@@ -30,8 +32,31 @@ export type SupportGroupCardProps = {
   onJoin?: () => void
   ctaDisabled?: boolean
 
+  category?: {
+    id: string,
+    name: string,
+    description?: string
+  }
+
+  totalPosts?: number
+  growthPercentage?: number
   // layout
   className?: string     // to override wrapper width/margins if needed
+}
+
+function timeAgo(dateString: string): string {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diff = (now.getTime() - date.getTime()) / 1000 // seconds
+
+  // console.log("diff", diff)
+
+  if (diff < 60) return "just now"
+  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`
+  if (diff < 2592000) return `${Math.floor(diff / 86400)} days ago`
+
+  return date.toLocaleDateString() // fallback to absolute date
 }
 
 export default function SupportGroupCard({
@@ -49,12 +74,28 @@ export default function SupportGroupCard({
   onJoin,
   ctaDisabled = false,
   className,
+  category
 }: SupportGroupCardProps) {
   // format numbers like 1,850
   const fmt = (n?: number) =>
     typeof n === 'number' ? new Intl.NumberFormat('en-IN').format(n) : undefined
 
   const shownAvatars = avatars.slice(0, 3)
+
+  const [formattedUpdatedText, setFormattedUpdatedText] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    if (!updatedText) return
+    // compute immediately after mount so first client paint matches server (if any)
+    setFormattedUpdatedText(timeAgo(updatedText))
+
+    // optional: update periodically so "x min ago" stays accurate
+    const id = setInterval(() => {
+      setFormattedUpdatedText(timeAgo(updatedText))
+    }, 60_000) // every minute
+
+    return () => clearInterval(id)
+  }, [updatedText])
 
   return (
     <div
@@ -118,7 +159,7 @@ export default function SupportGroupCard({
           </div>
 
           {/* Updated text */}
-          {updatedText && (
+          {formattedUpdatedText && (
             <div className="mt-1 flex items-center text-[#54555A]">
               {/* Clock */}
               <svg
@@ -137,7 +178,7 @@ export default function SupportGroupCard({
                 <path d="M12 6v6l4 2"></path>
               </svg>
               <span className="ml-2 text-[12px] leading-[15px] font-medium">
-                {updatedText}
+                {formattedUpdatedText}
               </span>
             </div>
           )}

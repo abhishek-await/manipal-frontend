@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { authApi, methodType } from '../api/auth.api'
+import { API_BASE_URL } from '../api/auth.api'
+
 
 export type Step = 'mobile' | 'otp'
 
@@ -140,7 +142,7 @@ export default function LoginForm() {
   const handleGoogleSignIn = async () => {
     try {
       setGoogleLoading(true)
-      console.log('Google Sign-In clicked')
+      router.push(`${API_BASE_URL}/accounts/google/login`)
     } finally {
       setGoogleLoading(false)
     }

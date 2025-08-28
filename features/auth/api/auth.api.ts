@@ -2,7 +2,7 @@ import { MobileNumberFormData } from '@/features/auth/validation/login.schema';
 import { SignupFormData } from '@/features/auth/validation/signup.schema';
 import { Days_One } from 'next/font/google';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export type methodType = 'SMS' | 'Whatsapp'
 
@@ -40,6 +40,11 @@ export const authApi = {
     }
 
     return response.json();
+  },
+
+  googleLogin: async () => {
+    const response = await fetch(`${API_BASE_URL}/accounts/google/login`)
+
   },
 
   // Sign up

@@ -127,6 +127,7 @@ export default function LoginForm() {
         setStep('mobile')
       } else {
         if (response.profile_complete) {
+          authApi.clearTokens()
           authApi.saveTokens(response.tokens.access,response.tokens.refresh)
           router.push('/home')
         } else {

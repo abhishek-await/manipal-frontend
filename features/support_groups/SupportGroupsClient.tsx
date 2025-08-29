@@ -65,6 +65,8 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
   // map of groupId -> boolean
   const [membershipMap, setMembershipMap] = useState<Record<string, boolean>>({})
 
+  const pendingRef = React.useRef(new Set<string>())
+
   // load current user once
   useEffect(() => {
     let mounted = true
@@ -85,27 +87,32 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
     let mounted = true
     if (!displayedGroups || displayedGroups.length === 0) return
 
-    // if no logged in user, membership false for all
+    // if no logged in user, membership false for all (same as before)
     if (!currentUser) {
-      // ensure map has false for those ids
       setMembershipMap((prev) => {
         const copy = { ...prev }
-        displayedGroups.forEach((g) => { if (copy[g.id] === undefined) copy[g.id] = false })
+        displayedGroups.forEach((g) => {
+          if (copy[g.id] === undefined) copy[g.id] = false
+        })
         return copy
       })
       return
     }
 
     // check membership for each displayed group (do in parallel)
-    (async () => {
+    ;(async () => {
       const checks = displayedGroups.map(async (g) => {
+        // skip groups that have a pending join/leave
+        if (pendingRef.current.has(String(g.id))) {
+          // keep the optimistic value if present, otherwise fallback to false
+          return { id: g.id, isMember: Boolean(membershipMap[g.id]) ?? false }
+        }
+
         try {
           const members = await groupApi.listMembers(g.id)
-          // members expected array of user objects with "id" field
           const isMember = Array.isArray(members) && members.some((m: any) => String(m.id) === String(currentUser.id))
           return { id: g.id, isMember }
         } catch (err) {
-          // failure => treat as not member
           return { id: g.id, isMember: false }
         }
       })
@@ -119,40 +126,58 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
       })
     })()
 
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [displayedGroups, currentUser])
 
   // ----- join / leave handlers -----
   const handleJoin = async (groupId: string) => {
-    // if not logged in -> redirect to login with next
     if (!currentUser) {
       router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`)
       return
     }
 
-    // optimistic update: set member true and increment members count
+    // mark pending to stop background checks from clobbering optimistic update
+    pendingRef.current.add(String(groupId))
+
+    // optimistic UI
     setMembershipMap((m) => ({ ...m, [groupId]: true }))
     setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, members: (g.members ?? 0) + 1 } : g))
 
     try {
       await groupApi.joinGroup(groupId)
-      // success: nothing else to do (state already optimistic)
+
+      // Optionally: use response if it returns member object; else revalidate below
     } catch (err: any) {
-      // rollback
+      // rollback on error
       setMembershipMap((m) => ({ ...m, [groupId]: false }))
       setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, members: Math.max((g.members ?? 1) - 1, 0) } : g))
 
-      // if unauthorized, clear tokens and redirect to login
       if (err?.message?.toLowerCase().includes('unauthorized')) {
         authApi.clearTokens?.()
         router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`)
         return
       }
-
       console.error('Join failed', err)
-      // TODO: show toast / UI error
+    } finally {
+      // remove pending then revalidate membership (after slight delay to allow backend to finish)
+      pendingRef.current.delete(String(groupId))
+
+      // small debounce/delay helps if the backend is eventually consistent
+      setTimeout(async () => {
+        try {
+          const members = await groupApi.listMembers(groupId)
+          const isMember = Array.isArray(members) && members.some((m: any) => String(m.id) === String(currentUser?.id))
+          setMembershipMap((m) => ({ ...m, [groupId]: isMember }))
+        } catch (e) {
+          // keep optimistic state if validation fails
+          // console.warn('validate membership failed', e)
+        }
+      }, 600) // 600ms - tweak if needed
     }
   }
+
 
   const handleLeave = async (groupId: string) => {
     if (!currentUser) {
@@ -160,9 +185,11 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
       return
     }
 
-    // optimistic update: mark false and decrement
+    pendingRef.current.add(String(groupId))
+
+    // optimistic UI
     setMembershipMap((m) => ({ ...m, [groupId]: false }))
-    setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, members: Math.max((g.members ?? 1) - 1) } : g))
+    setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, members: Math.max((g.members ?? 1) - 1, 0) } : g))
 
     try {
       await groupApi.leaveGroup(groupId)
@@ -176,11 +203,23 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
         router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`)
         return
       }
-
       console.error('Leave failed', err)
-      // TODO: show toast / UI error
+    } finally {
+      pendingRef.current.delete(String(groupId))
+
+      // revalidate membership after a small delay
+      setTimeout(async () => {
+        try {
+          const members = await groupApi.listMembers(groupId)
+          const isMember = Array.isArray(members) && members.some((m: any) => String(m.id) === String(currentUser?.id))
+          setMembershipMap((m) => ({ ...m, [groupId]: isMember }))
+        } catch (e) {
+          // ignore
+        }
+      }, 600)
     }
   }
+
 
   // UI (you can copy your page's JSX here; I include the core rendering pieces)
   return (
@@ -286,7 +325,7 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
   )
 }
 
-function StatTile({ number, label, iconSrc, alt }: { number: string | number; label: string; iconSrc: string; alt: string }) {
+export function StatTile({ number, label, iconSrc, alt }: { number: string | number; label: string; iconSrc: string; alt: string }) {
   return (
     <div className="flex flex-col items-center gap-1">
       <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#06AD9B1F]">

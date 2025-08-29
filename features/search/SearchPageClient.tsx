@@ -78,6 +78,9 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
   const [currentUser, setCurrentUser] = useState<any | null>(null)
   const [membershipMap, setMembershipMap] = useState<Record<string, boolean>>({})
 
+  // pendingRef: Map<groupId, 'join' | 'leave'> to avoid background checks from overwriting optimistic updates
+  const pendingRef = useRef<Map<string, 'join' | 'leave'>>(new Map())
+
   // load current user once
   useEffect(() => {
     let mounted = true
@@ -112,9 +115,17 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
       return
     }
 
-    // check membership for each displayed group in parallel
+    // check membership for each displayed group in parallel; skip groups with pending operations
     ;(async () => {
       const checks = displayedGroups.map(async (g) => {
+        const pending = pendingRef.current.get(String(g.id))
+        if (pending === 'join') {
+          return { id: g.id, isMember: true }
+        }
+        if (pending === 'leave') {
+          return { id: g.id, isMember: false }
+        }
+
         try {
           const members = await groupApi.listMembers(g.id)
           const isMember = Array.isArray(members) && members.some((m: any) => String(m.id) === String(currentUser.id))
@@ -136,26 +147,29 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
     return () => { mounted = false }
   }, [displayedGroups, currentUser])
 
-  // ---------- join / leave handlers (optimistic updates + error handling) ----------
+  // ---------- join / leave handlers (optimistic updates + pending tracking) ----------
   const handleJoin = async (groupId: string) => {
     if (!currentUser) {
       router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`)
       return
     }
 
+    // mark pending 'join'
+    pendingRef.current.set(String(groupId), 'join')
+
     // optimistic update
     setMembershipMap((m) => ({ ...m, [groupId]: true }))
-    // update both results and trending lists where applicable
-    setResults((prev) => prev.map((g) => g.id === groupId ? { ...g, members: (g.members ?? 0) + 1 } : g))
-    setTrending((prev) => prev.map((g) => g.id === groupId ? { ...g, members: (g.members ?? 0) + 1 } : g))
+    setResults((prev) => prev.map((g) => (g.id === groupId ? { ...g, members: (g.members ?? 0) + 1 } : g)))
+    setTrending((prev) => prev.map((g) => (g.id === groupId ? { ...g, members: (g.members ?? 0) + 1 } : g)))
 
     try {
+      // call join API (uses auth inside groupApi.joinGroup)
       await groupApi.joinGroup(groupId)
     } catch (err: any) {
       // rollback
       setMembershipMap((m) => ({ ...m, [groupId]: false }))
-      setResults((prev) => prev.map((g) => g.id === groupId ? { ...g, members: Math.max((g.members ?? 1) - 1, 0) } : g))
-      setTrending((prev) => prev.map((g) => g.id === groupId ? { ...g, members: Math.max((g.members ?? 1) - 1, 0) } : g))
+      setResults((prev) => prev.map((g) => (g.id === groupId ? { ...g, members: Math.max((g.members ?? 1) - 1, 0) } : g)))
+      setTrending((prev) => prev.map((g) => (g.id === groupId ? { ...g, members: Math.max((g.members ?? 1) - 1, 0) } : g)))
 
       if (err?.message?.toLowerCase().includes('unauthorized')) {
         authApi.clearTokens?.()
@@ -164,7 +178,18 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
       }
 
       console.error('Join failed', err)
-      // TODO: show UI toast/error
+    } finally {
+      // clear pending and revalidate membership once (small delay to allow backend consistency)
+      pendingRef.current.delete(String(groupId))
+      setTimeout(async () => {
+        try {
+          const members = await groupApi.listMembers(groupId)
+          const isMember = Array.isArray(members) && members.some((m: any) => String(m.id) === String(currentUser?.id))
+          setMembershipMap((m) => ({ ...m, [groupId]: isMember }))
+        } catch (e) {
+          // keep optimistic state if revalidation fails
+        }
+      }, 600)
     }
   }
 
@@ -174,18 +199,21 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
       return
     }
 
+    // mark pending 'leave'
+    pendingRef.current.set(String(groupId), 'leave')
+
     // optimistic update
     setMembershipMap((m) => ({ ...m, [groupId]: false }))
-    setResults((prev) => prev.map((g) => g.id === groupId ? { ...g, members: Math.max((g.members ?? 1) - 1, 0) } : g))
-    setTrending((prev) => prev.map((g) => g.id === groupId ? { ...g, members: Math.max((g.members ?? 1) - 1, 0) } : g))
+    setResults((prev) => prev.map((g) => (g.id === groupId ? { ...g, members: Math.max((g.members ?? 1) - 1, 0) } : g)))
+    setTrending((prev) => prev.map((g) => (g.id === groupId ? { ...g, members: Math.max((g.members ?? 1) - 1, 0) } : g)))
 
     try {
       await groupApi.leaveGroup(groupId)
     } catch (err: any) {
       // rollback
       setMembershipMap((m) => ({ ...m, [groupId]: true }))
-      setResults((prev) => prev.map((g) => g.id === groupId ? { ...g, members: (g.members ?? 0) + 1 } : g))
-      setTrending((prev) => prev.map((g) => g.id === groupId ? { ...g, members: (g.members ?? 0) + 1 } : g))
+      setResults((prev) => prev.map((g) => (g.id === groupId ? { ...g, members: (g.members ?? 0) + 1 } : g)))
+      setTrending((prev) => prev.map((g) => (g.id === groupId ? { ...g, members: (g.members ?? 0) + 1 } : g)))
 
       if (err?.message?.toLowerCase().includes('unauthorized')) {
         authApi.clearTokens?.()
@@ -194,7 +222,17 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
       }
 
       console.error('Leave failed', err)
-      // TODO: show UI toast/error
+    } finally {
+      pendingRef.current.delete(String(groupId))
+      setTimeout(async () => {
+        try {
+          const members = await groupApi.listMembers(groupId)
+          const isMember = Array.isArray(members) && members.some((m: any) => String(m.id) === String(currentUser?.id))
+          setMembershipMap((m) => ({ ...m, [groupId]: isMember }))
+        } catch (e) {
+          // ignore
+        }
+      }, 600)
     }
   }
 

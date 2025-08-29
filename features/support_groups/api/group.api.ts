@@ -5,7 +5,7 @@ export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export const groupApi = {
   getGroups: async () => {
-    const response = await fetch(`${API_BASE_URL}/support-groups/groups`,{
+    const response = await fetch(`${API_BASE_URL}/support-groups/groups/`,{
         method: "GET",
         headers: {
             'Content-Type': 'application/json',
@@ -77,7 +77,7 @@ export const groupApi = {
   },
 
   joinGroup: async (id: string) => {
-    const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/groups/${id}/join`, {
+    const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/groups/${id}/join/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -93,7 +93,7 @@ export const groupApi = {
   },
 
   leaveGroup: async (id: string) => { 
-    const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/groups/${id}/leave`,{
+    const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/groups/${id}/leave/`,{
       method: "DELETE",
       headers: {
         'Content-Type': 'application/json',
@@ -110,14 +110,14 @@ export const groupApi = {
 
   listMembers: async (id: string) => {
     // endpoint path: /support-groups/groups/{id}/members
-    const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/groups/${id}/members`, {
+    const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/groups/${id}/members/`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     }).catch(async (err) => {
       // If fetchWithAuth throws (no tokens or refresh failed), attempt unauthenticated fetch
       // so we still get public members list where applicable.
       try {
-        const r = await fetch(`${API_BASE_URL}/support-groups/groups/${id}/members`, {
+        const r = await fetch(`${API_BASE_URL}/support-groups/groups/${id}/members/`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
         })
@@ -135,4 +135,19 @@ export const groupApi = {
 
     return res.json() // should be an array of user objects
   },
+
+  getGroup: async (id: string) => {
+    const res = await fetch(`${API_BASE_URL}/support-groups/groups/${id}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if(!res.ok){
+      throw new Error(`Error fetching group`)
+    }
+
+    return res.json()
+  }
 };

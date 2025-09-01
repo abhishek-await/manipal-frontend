@@ -4,8 +4,9 @@ import GroupDetailClient from "@/features/support_groups/GroupDetailClient";
 import { groupApi } from "@/features/support_groups/api/group.api";
 import { SupportGroupCardProps } from "@/features/support_groups/components/Card";
 
-export default async function Page({ params }: { params: { id: string } }) {
-  const groupId = params?.id;
+export default async function Page(props: PageProps<'/group/[id]'>) {
+  const {id} = await props.params;
+  const groupId = id
   if (!groupId) return <div>Group id missing</div>;
 
   // Fetch group details (server-side)

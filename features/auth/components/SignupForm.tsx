@@ -9,6 +9,10 @@ import { useState, useEffect } from 'react'
 import { authApi } from '../api/auth.api'
 import { useRouter } from 'next/navigation'
 
+interface SignUpFormProps {
+  token: string
+}
+
 // Utility: live-format DD/MM/YYYY while typing
 function formatDOB(input: string) {
   const d = input.replace(/\D/g, '').slice(0, 8) // keep max 8 digits
@@ -17,7 +21,7 @@ function formatDOB(input: string) {
   return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}` // DD/MM/YYYY
 }
 
-export default function SignUpForm(token: string) {
+export default function SignUpForm(token: SignUpFormProps) {
 
   const {
     register,

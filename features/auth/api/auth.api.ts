@@ -49,7 +49,7 @@ export const authApi = {
 
   googleLogin: async () => {
     const response = await fetch(`${API_BASE_URL}/accounts/google/login`)
-
+    
   },
 
   // Sign up
@@ -125,8 +125,10 @@ export const authApi = {
     const { refresh } = authApi.getTokens()
     if (!refresh) return null
 
+    console.log(JSON.stringify({refresh}))
+
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/token/refresh`, {
+      const res = await fetch(`${API_BASE_URL}/auth/token/refresh/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh }),

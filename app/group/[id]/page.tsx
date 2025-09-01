@@ -2,24 +2,20 @@
 import React from "react";
 import GroupDetailClient from "@/features/support_groups/GroupDetailClient";
 import { groupApi } from "@/features/support_groups/api/group.api";
+import { PostCardProps } from "@/features/support_groups/components/PostCard";
+import { SupportGroupCardProps } from "@/features/support_groups/components/Card";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL;
-
-function mapBackendPost(p: any) {
-  const author = p.author ?? p.user ?? p.created_by ?? {};
+function mapBackendPost(p: PostCardProps) {
   const avatar =
-    author.avatar_url ||
-    author.avatar ||
-    (author.profile && author.profile.avatar) ||
-    "/avatars/omar.png";
-  const name = author.full_name || author.name || author.username || "Unknown";
-  const time = p.created_at || p.published_at || p.created || "some time ago";
-  const title = p.title || p.subject || "Post";
-  const excerpt = p.excerpt || (p.content && String(p.content).slice(0, 160)) || p.content || "";
-  const tag = (p.tags && p.tags[0]) || p.category || p.tag || "General";
-  const stats = { users: p.group_members_count ?? 0, experts: p.group_experts_count ?? 0 };
+    p.avatar || "/avatars/omar.png";
+  const name = p.name || "Unknown";
+  const time = p.time || "some time ago";
+  const title = p.title || "Post";
+  const excerpt = p.excerpt || "";
+  const tag = p.tag || "General";
+  const stats = { users: p.stats.users ?? 0, experts: p.stats.experts ?? 0 };
   return {
-    id: String(p.id ?? p._id ?? `${Math.random()}`),
+    id: String(p.id ?? `${Math.random()}`),
     avatar,
     name,
     time,
@@ -30,8 +26,9 @@ function mapBackendPost(p: any) {
   };
 }
 
-export default async function Page({ params }: { params: { id: string } }) {
-  const groupId = params?.id;
+export default async function Page(props: PageProps<'/group/[id]'>) {
+  const {id} = await props.params;
+  const groupId = id
   if (!groupId) return <div>Group id missing</div>;
 
   // Use your groupApi.getGroup (unchanged)
@@ -43,8 +40,7 @@ export default async function Page({ params }: { params: { id: string } }) {
     rawGroup = null;
   }
 
-  const mappedGroup = rawGroup
-    ? {
+  const mappedGroup : SupportGroupCardProps = {
         id: rawGroup.id ?? groupId,
         title: rawGroup.title ?? "Diabetes Support Group, Whitefield",
         imageSrc: rawGroup.image_url ?? "/images/group-thumb.png",
@@ -71,15 +67,10 @@ export default async function Page({ params }: { params: { id: string } }) {
         growthPercentage: rawGroup.growth_percentage,
         createdText: rawGroup.created_at,
         category: rawGroup.category,
-        __raw: rawGroup,
       }
-    : null;
 
   // posts: prefer embedded posts else demo fallback
   let mappedPosts: any[] = [];
-  if (mappedGroup && mappedGroup.__raw && Array.isArray(mappedGroup.__raw.posts) && mappedGroup.__raw.posts.length) {
-    mappedPosts = mappedGroup.__raw.posts.map(mapBackendPost);
-  } else {
     mappedPosts = [0, 1, 2, 3].map((i) => ({
       id: String(i),
       avatar: "/avatars/omar.png",
@@ -91,7 +82,6 @@ export default async function Page({ params }: { params: { id: string } }) {
       tag: "Equipment",
       stats: { users: 1850, experts: 12 },
     }));
-  }
 
   // IMPORTANT: tokens are in localStorage, so server cannot determine current user.
   // Set initialCurrentUser = null and initialIsMember = null to signal client-side detection.

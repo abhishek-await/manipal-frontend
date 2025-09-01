@@ -23,8 +23,8 @@ export const signupSchema = z.object({
       return age >= 13;
     }, 'You must be at least 13 years old'),
   gender: z.enum(['Male', 'Female', 'Others']),
-  hasReferralCode: z.boolean().default(false),
-  referralCode: z.string().optional().or(z.literal(""))
+  hasReferralCode: z.boolean().default(false).optional(),
+  referralCode: z.string().optional().or(z.literal("")).optional()
 }).refine((data) => !data.hasReferralCode || !!data.referralCode?.trim(), { path: ['referralCode'], message: 'Referral code is required'})
 
 export type SignupFormData = z.infer<typeof signupSchema>;

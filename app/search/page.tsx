@@ -20,7 +20,7 @@ export default async function Page() {
     // pass only trending groups for SSR — search remains client-side
     return <SearchPageClient initialTrending={trending} />
   } catch (err) {
-    // on error, render client with empty trending (client will still work for searches)
+    console.error("[Search Page] Error fetching trending groups ", err)
     return <SearchPageClient initialTrending={[]} />
   }
 }

@@ -308,6 +308,7 @@ export default function GroupDetailClient({
             posts.map((p) => (
               <div key={p.id} className="mx-auto" style={{ width: 343 }}>
                 <PostCard
+                  id={p.id}
                   avatar={p.avatar}
                   name={p.name}
                   time={p.time}
@@ -324,6 +325,7 @@ export default function GroupDetailClient({
             <>
               <div className="mx-auto opacity-40 pointer-events-none" style={{ width: 343 }}>
                 <PostCard
+                  id="hidden"
                   avatar="/avatars/omar.png"
                   name="Priya M."
                   time="2 hours ago"

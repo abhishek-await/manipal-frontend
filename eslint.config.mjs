@@ -20,6 +20,12 @@ const eslintConfig = [
       "next-env.d.ts",
     ],
   },
+  ...compat.config({
+    extends: ['next'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  }),
 ];
 
 export default eslintConfig;

@@ -2,7 +2,8 @@
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
 
-type PostCardProps = {
+export type PostCardProps = {
+  id: string,
   avatar: string;
   name: string;
   time: string;

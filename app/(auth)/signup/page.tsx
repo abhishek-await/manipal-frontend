@@ -1,17 +1,15 @@
 "use client"
 
 import SignUpForm from '@/features/auth/components/SignupForm'
-import React from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import React, { Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 
 
-const Signup= () => {
-
-  const router = useRouter()
+const Signup = () => {
 
   const SearchParams = useSearchParams()
 
-  const token = SearchParams.get("token") ?? undefined
+  const token = SearchParams.get("token") ?? ""
 
   return (
     <div className='flex w-full h-dvh justify-center'>
@@ -20,4 +18,12 @@ const Signup= () => {
   )
 }
 
-export default Signup
+const page = () => {
+  return (
+    <Suspense>
+      <Signup />
+    </Suspense>
+  )
+}
+
+export default page

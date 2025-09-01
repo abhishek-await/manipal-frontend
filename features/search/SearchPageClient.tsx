@@ -246,7 +246,7 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
           </button>
 
           <div className="relative flex-1">
-            <SearchBar value={query} onChange={(val: string) => setQuery(val)} placeholder="Find a support group" />
+            <SearchBar value={query} onChange={(val: string) => setQuery(val)} placeholder="Find a support group" navigateOnInteract={false} />
             {isSearching && (
               <button type="button" onClick={() => setQuery('')} aria-label="Clear search" className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5">
                 <Image src="/close.svg" alt="Clear" width={11.09} height={11.09} />

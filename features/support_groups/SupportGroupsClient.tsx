@@ -225,7 +225,7 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
   return (
     <div className="min-h-screen w-full bg-white flex flex-col">
       <main className="w-full flex justify-center">
-        <div className="w-full max-w-[390px] mx-auto px-6">
+        <div className="w-full max-w-[420px] mx-auto px-4 sm:px-6">
           <section className="pt-8">
             <h1 className="text-[28px] leading-8 font-bold text-[#18448A] text-center">
               Find Patient
@@ -236,7 +236,7 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
               Connect with others who understand your journey. Search for support groups by condition, location, or keywords.
             </p>
 
-            <div className="mt-6 grid grid-cols-2 gap-y-6 gap-x-6 justify-items-center">
+            <div className="mt-6 grid grid-cols-2 gap-y-6 gap-x-4 sm:grid-cols-4">
               <StatTile number={stats?.totalGroups?.toLocaleString() ?? '...'} label="Groups" iconSrc="/groups.svg" alt="Groups" />
               <StatTile number={stats?.totalPatients?.toLocaleString() ?? '...'} label="Patients & Caregivers" iconSrc="/users.svg" alt="Patients & Caregivers" />
               <StatTile number={stats?.totalExperts?.toLocaleString() ?? '...'} label="Health Experts" iconSrc="/experts.svg" alt="Health Experts" />
@@ -244,7 +244,7 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
             </div>
 
             <div className="mt-6">
-              <SearchBar value={q} onChange={setQ} onSubmit={() => {}} onClick={goToSearch} className="w-full" />
+              <SearchBar value={q} onChange={setQ} onSubmit={() => {}} onClick={goToSearch} className="w-full" navigateOnInteract={true}/>
             </div>
 
             <div className="mt-6">
@@ -325,14 +325,33 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
   )
 }
 
-export function StatTile({ number, label, iconSrc, alt }: { number: string | number; label: string; iconSrc: string; alt: string }) {
+// replace existing StatTile export
+export function StatTile({
+  number,
+  label,
+  iconSrc,
+  alt,
+}: {
+  number: string | number;
+  label: string;
+  iconSrc: string;
+  alt: string;
+}) {
   return (
-    <div className="flex flex-col items-center gap-1">
-      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#06AD9B1F]">
-        <Image src={iconSrc} alt={alt} width={24} height={24} className="h-6 w-6" sizes="24px" />
+    <div className="flex items-center gap-3 w-full">
+      <div className="flex items-center justify-center rounded-full bg-[#06AD9B1F] h-12 w-12 shrink-0">
+        <Image src={iconSrc} alt={alt} width={28} height={28} className="object-contain" />
       </div>
-      <div className="text-[20px] leading-6 font-medium text-[#333333]">{number}</div>
-      <div className="text-[12px] leading-4 text-[#7F7F7F] text-center">{label}</div>
+
+      <div className="flex flex-col">
+        <div className="text-[18px] sm:text-[20px] leading-6 font-medium text-[#333333]">
+          {number}
+        </div>
+        <div className="text-[12px] leading-4 text-[#7F7F7F]">
+          {label}
+        </div>
+      </div>
     </div>
-  )
+  );
 }
+

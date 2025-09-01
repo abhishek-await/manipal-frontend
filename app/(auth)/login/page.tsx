@@ -1,12 +1,10 @@
 import LoginForm from '@/features/auth/components/LoginForm'
 import React from 'react'
 
-const Login = () => {
+export default function Login() {
   return (
-    <div className='flex w-full h-dvh justify-center'>
+    <div className="flex w-full min-h-[100svh] justify-center items-start">
       <LoginForm />
     </div>
-  )
+  );
 }
-
-export default Login

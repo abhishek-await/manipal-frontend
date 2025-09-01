@@ -34,31 +34,17 @@ export default function ChipCarouselEmbla({
                 aria-pressed={active}
                 onClick={() => onChange?.(active ? "" : chip.id)}
                 className={[
-                  "shrink-0 flex items-center justify-between gap-3 transition-colors",
-                  // fixed size + rounding
-                  "w-[128px] h-10 rounded-md text-sm font-medium",
-                  // active vs inactive look
+                  "shrink-0 inline-flex items-center justify-between gap-3 transition-colors",
+                  // allow chip to expand with text, keep min width to content
+                  "min-w-[min-content] h-10 rounded-md text-sm font-medium px-3",
                   active
                     ? "bg-[#18448A] text-white shadow-md"
                     : "bg-white text-[#54555A] border border-[#E6E6E6] hover:border-[#C6C6C8]",
-                  // small padding inside
-                  "px-3.5",
                 ].join(" ")}
               >
                 <span className="truncate">{chip.label} ({chip.count})</span>
-
-                {/* show a small 'x' icon when active (white icon) */}
                 {active && (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    aria-hidden
-                    role="img"
-                  >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden role="img">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M18 6L6 18M6 6l12 12" />
                   </svg>
                 )}

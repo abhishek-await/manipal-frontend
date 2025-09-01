@@ -9,7 +9,6 @@ import { API_BASE_URL } from '../api/auth.api'
 
 
 export type Step = 'mobile' | 'otp'
-
 export default function LoginForm() {
   const router = useRouter()
   const [step, setStep] = useState<Step>('mobile')
@@ -297,6 +296,7 @@ export default function LoginForm() {
 
       {/* Sign Up Button */}
       <button
+      type='button'
         onClick={() => handleSendOTP()}
         className={`w-full max-w-md h-14 rounded-lg ${
                    phone.length === 10 ?

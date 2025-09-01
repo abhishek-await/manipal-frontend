@@ -1,4 +1,6 @@
 // app/support-groups/page.tsx
+export const dynamic = "force-dynamic";
+
 import SupportGroupsClient from '@/features/support_groups/SupportGroupsClient'
 import { groupApi } from '@/features/support_groups/api/group.api'
 import { SupportGroupCardProps as Card } from '@/features/support_groups/components/Card'

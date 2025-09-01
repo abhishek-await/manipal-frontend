@@ -9,7 +9,8 @@ export const groupApi = {
         method: "GET",
         headers: {
             'Content-Type': 'application/json',
-        }
+        },
+        cache: "no-store"
     })
 
     if (!response.ok) {
@@ -47,6 +48,7 @@ export const groupApi = {
           "Content-Type": "application/json",
         },
         signal: options?.signal,
+        cache: "no-store"
       }
     );
 
@@ -112,7 +114,8 @@ export const groupApi = {
     // endpoint path: /support-groups/groups/{id}/members
     const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/groups/${id}/members/`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json',},
+      cache: "no-store"
     }).catch(async (err) => {
       // If fetchWithAuth throws (no tokens or refresh failed), attempt unauthenticated fetch
       // so we still get public members list where applicable.
@@ -142,6 +145,7 @@ export const groupApi = {
       headers: {
         'Content-Type': 'application/json',
       },
+      cache: "no-store"
     })
 
     if(!res.ok){

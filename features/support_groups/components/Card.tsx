@@ -6,6 +6,7 @@ import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import MemberBadge from "./MemberBadge";
+import Link from "next/link";
 
 type Avatar = { src: string; alt?: string };
 
@@ -125,8 +126,8 @@ export default function SupportGroupCard({
   // styles by variant
   const isDetail = variant === "detail";
 
-  return (
-    <article
+  
+  const CardContent =( <article
       role={variant === "compact" ? "button" : undefined}
       tabIndex={variant === "compact" ? 0 : undefined}
       onClick={navigateToGroup}
@@ -324,5 +325,14 @@ export default function SupportGroupCard({
         </div>
       )}
     </article>
-  );
+  )
+
+  if(!isDetail){
+    return (
+       <Link href={`/group/${id}`} className="block focus:outline-none focus:ring-2 focus:ring-[#16AF9F] rounded-[12px]">
+        {CardContent}
+      </Link>
+    )
+  }
+  return CardContent
 }

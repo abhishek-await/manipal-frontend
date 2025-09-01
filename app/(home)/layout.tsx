@@ -1,5 +1,3 @@
-
-
 import Header from "@/features/layout/components/Header";
 import Footer from "@/features/layout/components/Footer";
 

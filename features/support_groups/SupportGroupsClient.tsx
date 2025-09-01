@@ -243,7 +243,7 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
               <StatTile number={stats?.totalDiscussions?.toLocaleString() ?? '...'} label="Discussions" iconSrc="/discussions.svg" alt="Discussions" />
             </div>
 
-            <div className="mt-6">
+            <div className="mt-12">
               <SearchBar value={q} onChange={setQ} onSubmit={() => {}} onClick={goToSearch} className="w-full" navigateOnInteract={true}/>
             </div>
 
@@ -345,8 +345,8 @@ export function StatTile({
 }) {
   return (
     <div className="flex items-center gap-3 w-full">
-      <div className="flex items-center justify-center rounded-full bg-[#06AD9B1F] h-12 w-12 shrink-0">
-        <Image src={iconSrc} alt={alt} width={28} height={28} className="object-contain" />
+      <div className="flex items-center justify-center rounded-full bg-[#06AD9B1F] h-10 w-10 shrink-0">
+        <Image src={iconSrc} alt={alt} width={40} height={40} />
       </div>
 
       <div className="flex flex-col">

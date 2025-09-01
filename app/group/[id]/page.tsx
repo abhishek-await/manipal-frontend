@@ -2,36 +2,13 @@
 import React from "react";
 import GroupDetailClient from "@/features/support_groups/GroupDetailClient";
 import { groupApi } from "@/features/support_groups/api/group.api";
-import { PostCardProps } from "@/features/support_groups/components/PostCard";
 import { SupportGroupCardProps } from "@/features/support_groups/components/Card";
 
-function mapBackendPost(p: PostCardProps) {
-  const avatar =
-    p.avatar || "/avatars/omar.png";
-  const name = p.name || "Unknown";
-  const time = p.time || "some time ago";
-  const title = p.title || "Post";
-  const excerpt = p.excerpt || "";
-  const tag = p.tag || "General";
-  const stats = { users: p.stats.users ?? 0, experts: p.stats.experts ?? 0 };
-  return {
-    id: String(p.id ?? `${Math.random()}`),
-    avatar,
-    name,
-    time,
-    title,
-    excerpt,
-    tag,
-    stats,
-  };
-}
-
-export default async function Page(props: PageProps<'/group/[id]'>) {
-  const {id} = await props.params;
-  const groupId = id
+export default async function Page({ params }: { params: { id: string } }) {
+  const groupId = params?.id;
   if (!groupId) return <div>Group id missing</div>;
 
-  // Use your groupApi.getGroup (unchanged)
+  // Fetch group details (server-side)
   let rawGroup: any = null;
   try {
     rawGroup = await groupApi.getGroup(groupId).catch(() => null);
@@ -40,55 +17,72 @@ export default async function Page(props: PageProps<'/group/[id]'>) {
     rawGroup = null;
   }
 
-  const mappedGroup : SupportGroupCardProps = {
-        id: rawGroup.id ?? groupId,
-        title: rawGroup.title ?? "Diabetes Support Group, Whitefield",
-        imageSrc: rawGroup.image_url ?? "/images/group-thumb.png",
-        description:
-          rawGroup.description ??
-          "A supportive community for people managing diabetes in the Whitefield area.",
-        rating: Number(rawGroup.rating ?? 4.9),
-        reviews: rawGroup.reviews ?? rawGroup.total_reviews ?? 0,
-        updatedText: rawGroup.updated_at ?? rawGroup.updated_at,
-        members: rawGroup.total_members ?? rawGroup.members ?? 0,
-        experts: rawGroup?.total_experts ?? rawGroup?.experts ?? 0,
-        avatars:
-          rawGroup.avatars && rawGroup.avatars.length > 0
-            ? rawGroup.avatars.map((a: any) => ({ src: a.url || a.src, alt: a.name || "" }))
-            : [
-                { src: "/avatars/omar.png", alt: "Omar" },
-                { src: "/avatars/fran.png", alt: "Fran" },
-                { src: "/avatars/jane.png", alt: "Jane" },
-              ],
-        ctaText: "Join Group",
-        variant: "detail",
-        isMember: false,
-        isFollowing: false,
-        growthPercentage: rawGroup.growth_percentage,
-        createdText: rawGroup.created_at,
-        category: rawGroup.category,
+  const mappedGroup: SupportGroupCardProps = {
+    id: rawGroup?.id ?? groupId,
+    title: rawGroup?.title ?? "Diabetes Support Group, Whitefield",
+    imageSrc: rawGroup?.image_url ?? "/images/group-thumb.png",
+    description:
+      rawGroup?.description ??
+      "A supportive community for people managing diabetes in the Whitefield area.",
+    rating: Number(rawGroup?.rating ?? 4.9),
+    reviews: rawGroup?.reviews ?? rawGroup?.total_reviews ?? 0,
+    updatedText: rawGroup?.updated_at,
+    members: rawGroup?.total_members ?? rawGroup?.members ?? 0,
+    experts: rawGroup?.total_experts ?? rawGroup?.experts ?? 0,
+    avatars:
+      rawGroup?.avatars?.length > 0
+        ? rawGroup.avatars.map((a: any) => ({ src: a.url || a.src, alt: a.name || "" }))
+        : [
+            { src: "/avatars/omar.png", alt: "Omar" },
+            { src: "/avatars/fran.png", alt: "Fran" },
+            { src: "/avatars/jane.png", alt: "Jane" },
+          ],
+    ctaText: "Join Group",
+    variant: "detail",
+    isMember: false,
+    isFollowing: false,
+    growthPercentage: rawGroup?.growth_percentage,
+    createdText: rawGroup?.created_at,
+    category: rawGroup?.category,
+  };
+
+  // Server-side fetch posts for this group (public posts endpoint)
+  // Use NEXT_PUBLIC_API_URL when configured, otherwise attempt relative path.
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+  const postsUrl = `${API_BASE}/support-groups/posts/${groupId}`
+
+  let initialPosts: any[] = [];
+  try {
+    // cache: 'no-store' ensures fresh data on each request (avoid stale on Vercel)
+    const res = await fetch(postsUrl, { cache: "no-store" });
+    const json = await res.json()
+    console.log("[Post fetch]: ", json)
+    if (res.ok) {
+      if (Array.isArray(json)) {
+        initialPosts = json.map((p: any) => ({
+          id: String(p.id ?? Math.random()),
+          avatar: p.avatar_url ?? "/avatars/omar.png",
+          name: p.full_name ?? p.email ?? "Unknown",
+          time: p.created_at ?? "2 hours ago",
+          title: p.title ?? (p.content ? String(p.content).slice(0, 60) : "Post"),
+          excerpt: p.content ?? "",
+          tag: p.tag ?? (rawGroup?.category?.name ?? "General"),
+          // we intentionally do not include per-post stats fields anymore,
+          // front-end will not render them (you requested removal).
+        }));
       }
+    } else {
+      console.warn("Posts fetch returned non-ok status", res.status);
+    }
+  } catch (err) {
+    console.warn("Error fetching posts server-side", err);
+  }
 
-  // posts: prefer embedded posts else demo fallback
-  let mappedPosts: any[] = [];
-    mappedPosts = [0, 1, 2, 3].map((i) => ({
-      id: String(i),
-      avatar: "/avatars/omar.png",
-      name: "Priya M.",
-      time: `${2 + i} hours ago`,
-      title: "Best glucose meters for accurate readings?",
-      excerpt:
-        "I've been using the same glucose meter for years, but I'm wondering if there are better options now that are more accurate and easy to calibrate.",
-      tag: "Equipment",
-      stats: { users: 1850, experts: 12 },
-    }));
-
-  // IMPORTANT: tokens are in localStorage, so server cannot determine current user.
-  // Set initialCurrentUser = null and initialIsMember = null to signal client-side detection.
+  // Pass server-provided posts down to client
   return (
     <GroupDetailClient
       initialGroup={mappedGroup}
-      initialPosts={mappedPosts}
+      initialPosts={initialPosts}
       initialCurrentUser={null}
       initialIsMember={null}
       groupId={groupId}

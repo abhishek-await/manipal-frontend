@@ -20,7 +20,7 @@ export type SupportGroupCardProps = {
   rating?: number;
   reviews?: number;
   updatedText?: string;
-  createdText?: string
+  createdText?: string;
 
   members?: number;
   experts?: number;
@@ -47,6 +47,12 @@ export type SupportGroupCardProps = {
 
   // new: variant controls visual layout
   variant?: "compact" | "detail";
+
+  // back/share controls (optional)
+  backIconSrc?: string;
+  shareIconSrc?: string;
+  onBack?: () => void;
+  onShare?: () => void;
 };
 
 function timeAgo(dateString: string | undefined): string | undefined {
@@ -84,6 +90,10 @@ export default function SupportGroupCard({
   isMember = false,
   isFollowing = false,
   variant = "compact",
+  backIconSrc = "/back.svg",
+  shareIconSrc = "/share-1.svg",
+  onBack,
+  onShare,
 }: SupportGroupCardProps) {
   const router = useRouter();
   const [formattedUpdatedText, setFormattedUpdatedText] = useState<string | undefined>(
@@ -123,27 +133,81 @@ export default function SupportGroupCard({
     onFollow?.();
   };
 
-  // styles by variant
+  const handleBack = () => {
+    if (onBack) return onBack();
+    // default back to /home
+    router.push("/home");
+  };
+
+  const handleShare = async () => {
+    if (onShare) return onShare();
+    try {
+      const url = (typeof window !== "undefined" && window.location.href) || `/group/${id}`;
+      if (navigator && (navigator as any).share) {
+        await (navigator as any).share({
+          title,
+          url,
+        });
+      } else if (navigator && (navigator as any).clipboard) {
+        await (navigator as any).clipboard.writeText(url);
+        // minimal feedback
+        alert("Link copied to clipboard");
+      } else {
+        // fallback
+        window.prompt("Copy this link", url);
+      }
+    } catch (err) {
+      console.warn("share failed", err);
+    }
+  };
+
   const isDetail = variant === "detail";
 
-  
-  const CardContent =( <article
+  return (
+    <article
       role={variant === "compact" ? "button" : undefined}
       tabIndex={variant === "compact" ? 0 : undefined}
       onClick={navigateToGroup}
       onKeyDown={onKeyDown}
       className={clsx(
-        !isDetail
+        // compact uses fixed size card for lists
+        variant === "compact"
           ? "w-[342px] h-[275px] rounded-[12px] border border-[#E5E7EB] bg-white p-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#16AF9F]"
-          : "w-full max-w-[390px] rounded-[12px] overflow-hidden bg-white",
+          : "w-full rounded-[12px] overflow-hidden bg-white shadow-sm",
         className
       )}
     >
-      {/* top area */}
+      {/* Top area for detail variant: includes back/share buttons */}
       {isDetail ? (
-        // detail top with gradient
-        <div style={{ background: "linear-gradient(180deg, rgba(0,183,172,0.12) 0%, rgba(0,183,172,0) 100%)" }} className="px-6 pt-6 pb-6">
-          <div className="flex flex-col items-center text-center">
+        <div className="relative bg-gradient-to-b from-[#E8FBF8] to-transparent px-6 pt-6 pb-6">
+          {/* back & share controls — absolutely positioned in the top overlay */}
+          <div className="absolute inset-x-0 top-3 px-4 flex items-center justify-between z-20">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleBack();
+              }}
+              aria-label="Back"
+              className="h-9 w-9 flex items-center justify-center"
+            >
+              <Image src={backIconSrc} alt="Back" width={18} height={18} />
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleShare();
+              }}
+              aria-label="Share"
+              className="h-9 w-9 flex items-center justify-center"
+            >
+              <Image src={shareIconSrc} alt="Share" width={24} height={24} />
+            </button>
+          </div>
+
+          <div className="flex flex-col items-center text-center relative z-10">
             <div className="mb-4">
               <div className="rounded-xl overflow-hidden w-[96px] h-[96px] mx-auto">
                 <Image src={imageSrc} alt={imageAlt} width={96} height={96} className="object-cover" />
@@ -199,17 +263,17 @@ export default function SupportGroupCard({
               </div>
             </div>
 
-            {/* actions: member/join + follow */}
-            <div className="mt-5 flex items-center gap-3 w-full">
+            {/* actions */}
+            <div className="mt-5 flex items-center gap-3 w-full max-w-[360px]">
               {isMember ? (
                 <div className="flex-1">
-                  <MemberBadge onClick={() => { /* optional management */ }} />
+                  <MemberBadge onClick={() => { /* management */ }} />
                 </div>
               ) : (
                 <button
                   type="button"
                   disabled={ctaDisabled}
-                  onClick={handlePrimaryClick}
+                  onClick={(e) => { e.stopPropagation(); handlePrimaryClick(e); }}
                   onMouseDown={(e) => e.stopPropagation()}
                   className={clsx(
                     "flex-1 h-11 rounded-[8px] text-white text-[14px] font-medium",
@@ -222,7 +286,7 @@ export default function SupportGroupCard({
 
               <button
                 type="button"
-                onClick={handleFollowClick}
+                onClick={(e) => { e.stopPropagation(); handleFollowClick(e); }}
                 onMouseDown={(e) => e.stopPropagation()}
                 className={clsx(
                   "h-11 px-4 rounded-[8px] border text-[14px] font-medium",
@@ -235,7 +299,7 @@ export default function SupportGroupCard({
           </div>
         </div>
       ) : (
-        // compact layout (home)
+        // compact layout used in lists
         <div>
           <div className="flex gap-4">
             <div className="shrink-0">
@@ -251,25 +315,26 @@ export default function SupportGroupCard({
                 </svg>
                 <span className="ml-2 text-[14px] leading-[22px] font-bold text-[#333333]">{rating.toFixed(1)}</span>
                 <span className="ml-2 text-[12px] leading-[18px] tracking-[-0.02em] text-[#54555A]">({fmt(reviews)})</span>
-
-                {shownAvatars.length > 0 && (
-                  <div className="ml-auto flex -space-x-2">
-                    {shownAvatars.map((a, i) => (
-                      <div key={i} className="h-[23.22px] w-[23.22px] rounded-full ring-2 ring-white overflow-hidden">
-                        <Image src={a.src} alt={a.alt ?? `Member ${i + 1}`} width={24} height={24} className="h-full w-full object-cover" />
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {formattedUpdatedText && (
-                <div className="mt-1 flex items-center text-[#54555A]">
-                  <svg width="18" height="18" viewBox="0 0 24 24" className="text-[#54555A]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <path d="M12 6v6l4 2"></path>
-                  </svg>
-                  <span className="ml-2 text-[12px] leading-[15px] font-medium">{formattedUpdatedText}</span>
+                <div className="mt-1 flex items-center text-[#54555A]  space-x-8">
+                  <div className="flex items-center">
+                    <svg width="18" height="18" viewBox="0 0 24 24" className="text-[#54555A]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <path d="M12 6v6l4 2"></path>
+                    </svg>
+                    <span className="ml-2 text-[12px] leading-[15px] font-medium">Updated {formattedUpdatedText}</span>
+                  </div>
+                  {shownAvatars.length > 0 && (
+                    <div className="flex -space-x-2 ml-auto">
+                      {shownAvatars.map((a, i) => (
+                        <div key={i} className="h-[23.22px] w-[23.22px] rounded-full ring-2 ring-white overflow-hidden">
+                          <Image src={a.src} alt={a.alt ?? `Member ${i + 1}`} width={24} height={24} className="h-full w-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -325,14 +390,5 @@ export default function SupportGroupCard({
         </div>
       )}
     </article>
-  )
-
-  if(!isDetail){
-    return (
-       <Link href={`/group/${id}`} className="block focus:outline-none focus:ring-2 focus:ring-[#16AF9F] rounded-[12px]">
-        {CardContent}
-      </Link>
-    )
-  }
-  return CardContent
+  );
 }

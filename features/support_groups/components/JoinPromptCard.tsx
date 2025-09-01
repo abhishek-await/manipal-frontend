@@ -1,4 +1,4 @@
-// src/features/support_groups/components/JoinPromptCard.tsx
+// features/support_groups/components/JoinPromptCard.tsx
 "use client";
 
 import React from "react";
@@ -18,7 +18,7 @@ export default function JoinPromptCard({ onJoin, ariaLabel = "Join group", class
       className={`pointer-events-none flex justify-center ${className ?? ""}`}
     >
       <div
-        className="w-[342px] max-w-full h-[297px] bg-white border border-[#E5E7EB] rounded-xl shadow-lg pointer-events-auto"
+        className="w-full max-w-[342px] h-[297px] bg-white border border-[#E5E7EB] rounded-xl shadow-lg pointer-events-auto"
         style={{ boxSizing: "border-box" }}
       >
         <div className="relative w-full h-full flex flex-col items-center px-6 pt-8">

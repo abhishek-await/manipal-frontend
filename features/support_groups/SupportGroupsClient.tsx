@@ -265,7 +265,7 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
             </div>
           </section>
 
-          <section className="mt-8">
+          <section className="mt-8 w-full">
             <h2 className="text-[20px] font-bold text-[#18448A] text-center md:text-left">
               {selectedChip ? selectedChip.label : 'All'} Support Group(s)
             </h2>
@@ -273,16 +273,22 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
               Showing {Math.min(displayedGroups.length, visibleGroups.length)} of {visibleGroups.length} groups
             </p>
 
-            <div className="mt-4 space-y-4">
-              {displayedGroups.length === 0 && <div className="text-sm text-[#54555A]">No groups found.</div>}
+            <div className="mt-4 flex flex-col items-center gap-4">
+              {displayedGroups.length === 0 && (
+                <div className="text-sm text-[#54555A]">No groups found.</div>
+              )}
+
               {displayedGroups.map((c) => (
-                <SupportGroupCard
-                  key={c.id}
-                  {...c}
-                  isMember={!!membershipMap[c.id]}
-                  onJoin={() => handleJoin(c.id)}
-                  onLeave={() => handleLeave(c.id)}
-                />
+                // wrapper constrains width and centers the card
+                <div key={c.id} className="w-full max-w-[360px] mx-auto">
+                  <SupportGroupCard
+                    {...c}
+                    className="w-full" // pass down class so card internals are full width of wrapper
+                    isMember={!!membershipMap[c.id]}
+                    onJoin={() => handleJoin(c.id)}
+                    onLeave={() => handleLeave(c.id)}
+                  />
+                </div>
               ))}
             </div>
 

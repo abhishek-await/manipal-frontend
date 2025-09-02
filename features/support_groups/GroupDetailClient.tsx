@@ -19,6 +19,7 @@ type Post = {
   title: string;
   excerpt: string;
   tag: string;
+  isLiked: boolean
 };
 
 export default function GroupDetailClient({
@@ -135,6 +136,11 @@ export default function GroupDetailClient({
     }
   };
 
+  const goToCreatePost = () => {
+    // groupId -> create-post route
+    router.push(`/support-group/${groupId}/create-post`);
+  };
+
   return (
     <div className="min-h-screen bg-white flex justify-center py-4">
       <div className="w-full max-w-2xl relative">
@@ -228,6 +234,7 @@ export default function GroupDetailClient({
                 title={p.title}
                 excerpt={p.excerpt}
                 tag={p.tag}
+                initiallyLiked={p.isLiked}
                 className="w-full"
               />
             </div>
@@ -243,6 +250,24 @@ export default function GroupDetailClient({
             </>
           )}
         </div>
+
+        {currentUser && (
+          <div className="fixed left-0 right-0 bottom-4 pointer-events-none z-40">
+            <div className="max-w-[390px] mx-auto px-4 pointer-events-auto">
+              <button
+                onClick={goToCreatePost}
+                className="mx-auto w-[219px] h-[54px] rounded-lg border border-[#00B7AC] bg-white flex items-center gap-3 px-3 text-[#18448A] font-medium shadow"
+                aria-label="Start a discussion"
+                type="button"
+              >
+                <div className="h-8 w-8 rounded-full bg-[#ECFDF6] flex items-center justify-center">
+                  <Image src="/post-icon.svg" alt="Post" width={18} height={18} />
+                </div>
+                <span>Start a discussion</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* About section visible only for logged-in users */}
         {currentUser && (

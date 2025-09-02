@@ -153,5 +153,34 @@ export const groupApi = {
     }
 
     return res.json()
+  },
+
+  likePost: async (postId: string) => {
+    const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/posts/${postId}/like/`,{
+      method: "POST",
+      headers: { 'Content-Type': 'application/json',},
+    })
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`Error liking post: ${res.status} ${text}`)
+    }
+
+    return res.json()
+  },
+
+  createPost: async (groupId: string, data: { title?: string; content: string; category?: string }) => {
+    const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/posts/${groupId}/post/`, {
+      method: "POST",
+      headers: { 'Content-Type': 'application/json'},
+      body: JSON.stringify(data || {})
+    })
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`Error creating post: ${res.status} ${text}`)
+    }
+
+    return res.json()
   }
 };

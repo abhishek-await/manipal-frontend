@@ -68,6 +68,7 @@ export default async function Page(props: PageProps<'/group/[id]'>) {
           title: p.title ?? (p.content ? String(p.content).slice(0, 60) : "Post"),
           excerpt: p.content ?? "",
           tag: p.tag ?? (rawGroup?.category?.name ?? "General"),
+          isLiked: p.is_like_by_user,
           // we intentionally do not include per-post stats fields anymore,
           // front-end will not render them (you requested removal).
         }));

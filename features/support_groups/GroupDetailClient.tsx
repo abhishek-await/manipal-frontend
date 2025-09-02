@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { authApi } from "@/features/auth/api/auth.api";
 import { groupApi } from "@/features/support_groups/api/group.api";
+import { timeAgo } from "@/features/support_groups/components/Card";
 
 type Post = {
   id: string;

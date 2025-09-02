@@ -3,10 +3,9 @@
 
 import Image from "next/image";
 import clsx from "clsx";
-import { useEffect, useState } from "react";
+import { useEffect, useState, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import MemberBadge from "./MemberBadge";
-import Link from "next/link";
 
 type Avatar = { src: string; alt?: string };
 
@@ -53,9 +52,12 @@ export type SupportGroupCardProps = {
   shareIconSrc?: string;
   onBack?: () => void;
   onShare?: () => void;
+
+  // NEW: optional href — if present parent likely wraps with <Link href={href}>
+  href?: string;
 };
 
-function timeAgo(dateString: string | undefined): string | undefined {
+export function timeAgo(dateString: string | undefined): string | undefined {
   if (!dateString) return undefined;
   const date = new Date(dateString);
   const now = new Date();
@@ -94,6 +96,7 @@ export default function SupportGroupCard({
   shareIconSrc = "/share-1.svg",
   onBack,
   onShare,
+  href,
 }: SupportGroupCardProps) {
   const router = useRouter();
   const [formattedUpdatedText, setFormattedUpdatedText] = useState<string | undefined>(
@@ -111,8 +114,14 @@ export default function SupportGroupCard({
   const shownAvatars = avatars.slice(0, 3);
 
   // Behavior: compact card clickable -> navigates to group page
+  // BUT if href is provided parent is expected to wrap in Link and handle navigation.
   const navigateToGroup = () => {
-    if (variant === "compact") router.push(`/group/${id}`);
+    if (variant !== "compact") return;
+    if (href) return; // Link from parent will handle navigation & prefetch
+    // use startTransition to keep UI responsive
+    startTransition(() => {
+      router.push(`/group/${id}`);
+    });
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -135,7 +144,6 @@ export default function SupportGroupCard({
 
   const handleBack = () => {
     if (onBack) return onBack();
-    // default back to /home
     router.push("/home");
   };
 
@@ -143,17 +151,12 @@ export default function SupportGroupCard({
     if (onShare) return onShare();
     try {
       const url = (typeof window !== "undefined" && window.location.href) || `/group/${id}`;
-      if (navigator && (navigator as any).share) {
-        await (navigator as any).share({
-          title,
-          url,
-        });
-      } else if (navigator && (navigator as any).clipboard) {
+      if ((navigator as any)?.share) {
+        await (navigator as any).share({ title, url });
+      } else if ((navigator as any)?.clipboard) {
         await (navigator as any).clipboard.writeText(url);
-        // minimal feedback
         alert("Link copied to clipboard");
       } else {
-        // fallback
         window.prompt("Copy this link", url);
       }
     } catch (err) {
@@ -165,22 +168,22 @@ export default function SupportGroupCard({
 
   return (
     <article
-      role={variant === "compact" ? "button" : undefined}
-      tabIndex={variant === "compact" ? 0 : undefined}
+      // only expose as button when this card itself will handle navigation (i.e. no parent Link)
+      role={!href && variant === "compact" ? "button" : undefined}
+      tabIndex={!href && variant === "compact" ? 0 : undefined}
       onClick={navigateToGroup}
       onKeyDown={onKeyDown}
       className={clsx(
-        // compact uses fixed size card for lists
+        // make compact full width (parent controls max width)
         variant === "compact"
-          ? "w-[342px] h-[275px] rounded-[12px] border border-[#E5E7EB] bg-white p-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#16AF9F]"
+          ? "w-full rounded-[12px] border border-[#E5E7EB] bg-white p-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#16AF9F]"
           : "w-full rounded-[12px] overflow-hidden bg-white shadow-sm",
         className
       )}
     >
-      {/* Top area for detail variant: includes back/share buttons */}
+      {/* detail variant: includes back/share buttons */}
       {isDetail ? (
         <div className="relative bg-gradient-to-b from-[#E8FBF8] to-transparent px-6 pt-6 pb-6">
-          {/* back & share controls — absolutely positioned in the top overlay */}
           <div className="absolute inset-x-0 top-3 px-4 flex items-center justify-between z-20">
             <button
               type="button"

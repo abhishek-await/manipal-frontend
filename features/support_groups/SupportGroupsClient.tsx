@@ -10,6 +10,8 @@ import { SupportGroupCardProps as Card } from '@/features/support_groups/compone
 import { useRouter } from 'next/navigation'
 import { groupApi } from './api/group.api'
 import { authApi } from '../auth/api/auth.api'
+import { startTransition } from "react";
+import Link from "next/link";
 
 const PAGE_SIZE = 4
 
@@ -30,10 +32,22 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
   const [q, setQ] = useState('')
   const router = useRouter()
   const goToSearch = () => {
-    const url = q ? `/search?q=${encodeURIComponent(q)}` : '/search'
-    router.push(url)
-  }
+    const params = new URLSearchParams();
+    const qTrim = q?.trim();
+    if (qTrim) params.set("q", qTrim);
+    params.set("focus", "1"); // request focus on search page
 
+    const qs = params.toString();
+    const path = `/search${qs ? `?${qs}` : ""}`;
+
+    // prefetch to help the navigation be faster (esp. on production)
+    router.prefetch?.("/search");
+
+    // low-priority navigation so UI remains snappy
+    startTransition(() => {
+      router.push(path);
+    });
+  };
   // use the server-rendered initial data (no client refetch by default)
   const [groups, setGroups] = useState<Card[]>(initialGroups ?? [])
   const [chipItems, setChipItems] = useState<ChipItem[]>(initialChipItems ?? [])
@@ -244,7 +258,8 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
             </div>
 
             <div className="mt-12">
-              <SearchBar value={q} onChange={setQ} onSubmit={() => {}} onClick={goToSearch} className="w-full" navigateOnInteract={true}/>
+              {/* On home page the search bar navigates to /search when interacted */}
+              <SearchBar value={q} onChange={setQ} onSubmit={() => {}} onClick={goToSearch} className="w-full" navigateOnInteract={true} />
             </div>
 
             <div className="mt-6">
@@ -278,18 +293,26 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
                 <div className="text-sm text-[#54555A]">No groups found.</div>
               )}
 
-              {displayedGroups.map((c) => (
-                // wrapper constrains width and centers the card
-                <div key={c.id} className="w-full max-w-[360px] mx-auto">
-                  <SupportGroupCard
-                    {...c}
-                    className="w-full" // pass down class so card internals are full width of wrapper
-                    isMember={!!membershipMap[c.id]}
-                    onJoin={() => handleJoin(c.id)}
-                    onLeave={() => handleLeave(c.id)}
-                  />
-                </div>
-              ))}
+              {displayedGroups.map((c) => {
+                const href = `/group/${c.id}`
+
+                return (
+                  <div key={c.id} className="w-full max-w-[360px] mx-auto">
+                    {/* Wrap card in Link so Next can prefetch */}
+                    <Link href={href} prefetch={true} className="block w-full" onPointerEnter={() => { router.prefetch?.(href) }}>
+                      {/* We pass href down to the card so it can avoid its own router.push */}
+                      <SupportGroupCard
+                        {...c}
+                        href={href}
+                        className="w-full"
+                        isMember={!!membershipMap[c.id]}
+                        onJoin={() => handleJoin(c.id)}
+                        onLeave={() => handleLeave(c.id)}
+                      />
+                    </Link>
+                  </div>
+                )
+              })}
             </div>
 
             <div className="mt-5 flex justify-center">

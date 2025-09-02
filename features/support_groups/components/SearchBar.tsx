@@ -1,7 +1,6 @@
-// features/support_groups/components/SearchBar.tsx
 "use client";
 
-import React from "react";
+import React, { startTransition, useId } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 
@@ -42,11 +41,26 @@ export default function SearchBar({
   navigateOnInteract = true,
 }: SearchBarProps) {
   const router = useRouter();
+  const id = useId();
+  const inputId = `search-${id}`;
 
   const navigateToSearch = () => {
-    // push with current value optionally (change if you don't want to forward value)
-    const q = value?.trim() ? `?q=${encodeURIComponent(value.trim())}` : "";
-    router.push(`/search${q}`);
+    const params = new URLSearchParams();
+    const qTrim = value?.trim();
+    if (qTrim) params.set("q", qTrim);
+    // signal search page to focus input
+    params.set("focus", "1");
+
+    const qs = params.toString();
+    const path = `/search${qs ? `?${qs}` : ""}`;
+
+    // prefetchtarget optionally (helps in production)
+    router.prefetch?.("/search");
+
+    // push as low-priority so UI remains responsive
+    startTransition(() => {
+      router.push(path);
+    });
   };
 
   const handleClick = (e: React.MouseEvent<HTMLInputElement>) => {
@@ -57,6 +71,11 @@ export default function SearchBar({
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     onFocus?.(e);
     if (navigateOnInteract) navigateToSearch();
+  };
+
+  // prefetch on hover / pointer enter / touchstart to speed up navigation
+  const prefetchSearch = () => {
+    router.prefetch?.("/search");
   };
 
   // If navigateOnInteract is true, we want readOnly so users cannot type on the home page.
@@ -71,6 +90,8 @@ export default function SearchBar({
         onSubmit?.();
       }}
       className={cx("relative w-full h-[52px]", className)}
+      onPointerEnter={prefetchSearch}
+      onTouchStart={prefetchSearch}
     >
       <div className="absolute inset-0 rounded-[8px] border border-[#16AF9F] pointer-events-none" />
 
@@ -83,6 +104,7 @@ export default function SearchBar({
       />
 
       <input
+        id={inputId}
         name={name}
         autoFocus={autoFocus}
         disabled={disabled}

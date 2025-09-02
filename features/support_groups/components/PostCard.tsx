@@ -1,6 +1,7 @@
 "use client";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
+import { timeAgo } from "./Card";
 
 export type PostCardProps = {
   id: string;
@@ -43,7 +44,7 @@ export default function PostCard({
                 <div className="text-lg font-semibold text-[#18448A] truncate">
                   {name}
                 </div>
-                <div className="text-sm text-gray-500">{time}</div>
+                <div className="text-sm text-gray-500">{timeAgo(time)}</div>
               </div>
             </div>
 

@@ -38,7 +38,7 @@ export default function SignUpForm(token: SignUpFormProps) {
       lastName: "",
       email: "",
       dateOfBirth: "",
-      gender: "Male",
+      gender: null,
       hasReferralCode: false,
       referralCode: "",
     },
@@ -97,9 +97,7 @@ export default function SignUpForm(token: SignUpFormProps) {
             placeholder=""
             inputMode="text"
             autoComplete="given-name"
-            className={`w-full h-12 px-4 rounded-[6px] border ${
-              errors.firstName ? "border-red-500" : "border-[#8D8E91]"
-            } focus:outline-none`}
+            className={`w-full h-12 px-4 rounded-[6px] border border-[#8D8E91] focus:outline-none`}
           />
           {/* Show helper only after user typed and blurred */}
           {/* {touched("firstName") && value("firstName") && !errors.firstName && (
@@ -122,9 +120,7 @@ export default function SignUpForm(token: SignUpFormProps) {
             placeholder=""
             inputMode="text"
             autoComplete="family-name"
-            className={`w-full h-12 px-4 rounded-[6px] border ${
-              errors.lastName ? "border-red-500" : "border-[#8D8E91]"
-            } focus:outline-none`}
+            className={`w-full h-12 px-4 rounded-[6px] border border-[#8D8E91] focus:outline-none`}
           />
           {/* {touched("lastName") && value("lastName") && !errors.lastName && (
             <p className="mt-1 text-xs text-[#6B7280]">Thanks — {value("lastName")} is noted.</p>
@@ -146,9 +142,7 @@ export default function SignUpForm(token: SignUpFormProps) {
             placeholder=""
             inputMode="email"
             autoComplete="email"
-            className={`w-full h-12 px-4 rounded-[6px] border ${
-              errors.email ? "border-red-500" : "border-[#8D8E91]"
-            } focus:outline-none`}
+            className={`w-full h-12 px-4 rounded-[6px] border border-[#8D8E91] focus:outline-none`}
           />
           {/* {touched("email") && value("email") && !errors.email && (
             <p className="mt-1 text-xs text-[#6B7280]">We’ll send important messages to {value("email")}.</p>
@@ -175,9 +169,7 @@ export default function SignUpForm(token: SignUpFormProps) {
                 onBlur={onBlur}
                 inputMode="numeric"
                 placeholder="DD/MM/YYYY"
-                className={`w-full h-12 px-4 rounded-[6px] border ${
-                  errors.dateOfBirth ? "border-red-500" : "border-[#8D8E91]"
-                } focus:outline-none`}
+                className={`w-full h-12 px-4 rounded-[6px] border border-[#8D8E91] focus:outline-none`}
                 aria-describedby="dob-help"
               />
             )}
@@ -248,9 +240,7 @@ export default function SignUpForm(token: SignUpFormProps) {
             <input
               id="referralCode"
               {...register("referralCode")}
-              className={`w-full h-12 px-4 rounded-[6px] border ${
-                errors.referralCode ? "border-red-500" : "border-[#8D8E91]"
-              } focus:outline-none`}
+              className={`w-full h-12 px-4 rounded-[6px] border border-[#8D8E91] focus:outline-none`}
               placeholder=""
               autoComplete="off"
             />

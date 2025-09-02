@@ -22,7 +22,7 @@ export const signupSchema = z.object({
       const age = today.getFullYear() - birthDate.getFullYear();
       return age >= 13;
     }, 'You must be at least 13 years old'),
-  gender: z.enum(['Male', 'Female', 'Others']),
+  gender: z.enum(['Male', 'Female', 'Others']).nullable(),
   hasReferralCode: z.boolean().default(false).optional(),
   referralCode: z.string().optional().or(z.literal("")).optional()
 }).refine((data) => !data.hasReferralCode || !!data.referralCode?.trim(), { path: ['referralCode'], message: 'Referral code is required'})

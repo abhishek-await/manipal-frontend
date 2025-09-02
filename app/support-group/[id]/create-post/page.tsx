@@ -3,13 +3,9 @@ import React from "react";
 import { groupApi } from "@/features/support_groups/api/group.api";
 import CreatePostClient from "@/features/support_groups/CreatePostClient";
 
-type PageProps<T extends string = string> = {
-  params: Record<string, string>
-  searchParams?: Record<string, string | string[] | undefined>
-}
-
-export default async function Page(props: PageProps) {
-  const id = props?.params?.id;
+export default async function Page(props: PageProps<'/support-group/[id]/create-post'>) {
+  const {id} = await props.params;
+  const groupId = id
   if (!id) return <div>Group id missing</div>;
 
   // SSR: fetch minimal group info (title + avatar) to render header

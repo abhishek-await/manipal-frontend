@@ -243,6 +243,9 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
       <div className="w-full max-w-[375px] px-4 pb-[max(24px,env(safe-area-inset-bottom))] mx-auto">
         <div className="flex items-center gap-3 pt-4">
           {/* Back handled by layout/header */}
+          <button type="button" aria-label="Back" className="h-6 w-6 flex-shrink-0" onClick={() => router.back()}>
+            <img src="/arrow-left.svg" alt="Back" className="h-6 w-6 object-contain" />
+          </button>
           <div className="relative flex-1">
             <SearchBar
               value={query}

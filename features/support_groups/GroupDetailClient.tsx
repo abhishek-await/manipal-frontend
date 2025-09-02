@@ -1,7 +1,6 @@
-// features/support_groups/GroupDetailClient.tsx
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import SupportGroupCard, { SupportGroupCardProps } from "@/features/support_groups/components/Card";
 import PostCard from "@/features/support_groups/components/PostCard";
 import JoinPromptCard from "@/features/support_groups/components/JoinPromptCard";
@@ -9,17 +8,18 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { authApi } from "@/features/auth/api/auth.api";
 import { groupApi } from "@/features/support_groups/api/group.api";
-import { timeAgo } from "@/features/support_groups/components/Card";
 
 type Post = {
   id: string;
   avatar: string;
   name: string;
-  time: string;
+  time: string; // human-friendly
   title: string;
   excerpt: string;
   tag: string;
-  isLiked: boolean
+  createdAt?: string; // ISO date string if available
+  isLiked?: boolean;
+  likeCount?: number;
 };
 
 export default function GroupDetailClient({
@@ -40,15 +40,18 @@ export default function GroupDetailClient({
   const [posts, setPosts] = useState<Post[]>(initialPosts ?? []);
   const [loading, setLoading] = useState(false);
 
-  // currentUser detection happens client-side
+  // auth / membership
   const [currentUser, setCurrentUser] = useState<any | null>(initialCurrentUser ?? null);
   const [isMember, setIsMember] = useState<boolean | null>(initialIsMember ?? null);
 
   const feedRef = useRef<HTMLDivElement | null>(null);
 
+  // filtering UI state
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState<"latest" | "oldest" | "trending">("latest");
+
   useEffect(() => {
     let mounted = true;
-
     async function detectAuth() {
       try {
         const u = await authApi.getCurrentUser();
@@ -83,15 +86,35 @@ export default function GroupDetailClient({
     return () => { mounted = false; };
   }, [groupId]);
 
+  // Helper: get epoch from post (createdAt preferred)
+  const getPostTime = (p: Post) => {
+    const t = p.createdAt ?? p.time;
+    const d = Date.parse(t || "");
+    return Number.isNaN(d) ? 0 : d;
+  };
+
+  // sortedPosts derived from original posts + selectedFilter
+  const sortedPosts = useMemo(() => {
+    if (!posts || posts.length === 0) return [];
+    const copy = posts.slice();
+    if (selectedFilter === "latest") {
+      copy.sort((a, b) => getPostTime(b) - getPostTime(a));
+    } else if (selectedFilter === "oldest") {
+      copy.sort((a, b) => getPostTime(a) - getPostTime(b));
+    } else if (selectedFilter === "trending") {
+      copy.sort((a, b) => (b.likeCount ?? 0) - (a.likeCount ?? 0));
+    }
+    return copy;
+  }, [posts, selectedFilter]);
+
+  // handlers for join/leave/follow (unchanged)
   const handleJoinAction = async () => {
     if (!currentUser) {
       router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`);
       return;
     }
-
     setIsMember(true);
     setGroup((prev) => (prev ? { ...prev, members: (prev.members ?? 0) + 1 } : prev));
-
     try {
       await groupApi.joinGroup(groupId);
     } catch (err: any) {
@@ -111,10 +134,8 @@ export default function GroupDetailClient({
       router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`);
       return;
     }
-
     setIsMember(false);
     setGroup((prev) => (prev ? { ...prev, members: Math.max((prev.members ?? 1) - 1, 0) } : prev));
-
     try {
       await groupApi.leaveGroup(groupId);
     } catch (err: any) {
@@ -131,21 +152,32 @@ export default function GroupDetailClient({
 
   const handleFollow = () => {
     if (!currentUser) router.push("/login");
-    else {
-      console.debug("follow clicked");
-    }
+    else { /* implement follow logic */ }
   };
 
   const goToCreatePost = () => {
-    // groupId -> create-post route
     router.push(`/support-group/${groupId}/create-post`);
+  };
+
+  // Filter modal helpers
+  const openFilter = () => setFilterOpen(true);
+  const closeFilter = () => setFilterOpen(false);
+  const applyFilterAndClose = () => {
+    // sortedPosts updates automatically (controlled by selectedFilter)
+    closeFilter();
+  };
+
+  // when like action happens inside PostCard, we only need to update local posts array
+  // but PostCard handles API call itself (optimistic). Optionally we can provide a handler
+  // to update likeCount/isLiked in the Group state if you also want to reflect it globally.
+  const updatePostLikeState = (postId: string, isLiked: boolean, likeCount: number) => {
+    setPosts((prev) => prev.map(p => p.id === postId ? { ...p, isLiked, likeCount } : p));
   };
 
   return (
     <div className="min-h-screen bg-white flex justify-center py-4">
       <div className="w-full max-w-2xl relative">
-        <div className="mt-3">
-          {/* SupportGroupCard now takes full width of the .max-w-[390px] container */}
+        <div className="mt-3 px-4">
           {group ? (
             <SupportGroupCard
               {...group}
@@ -153,7 +185,6 @@ export default function GroupDetailClient({
               onFollow={handleFollow}
               isMember={Boolean(isMember)}
               variant="detail"
-              // set icons if you have your own paths
               backIconSrc="/back.svg"
               shareIconSrc="/share-1.svg"
             />
@@ -162,7 +193,7 @@ export default function GroupDetailClient({
           )}
         </div>
 
-        {/* Moderators & Experts */}
+        {/* Moderators & Experts + Stats (kept) */}
         <div className="mt-4 px-4">
           <h2 className="text-[20px] font-bold text-[#18448A]">Moderators & Experts</h2>
           <div className="mt-4 space-y-3">
@@ -193,7 +224,6 @@ export default function GroupDetailClient({
           </div>
         </div>
 
-        {/* Stats card (kept) */}
         <div className="mt-4 px-4">
           <GroupStatsCard
             postsThisWeek={group?.totalPosts ?? 45}
@@ -203,28 +233,37 @@ export default function GroupDetailClient({
           />
         </div>
 
-        {/* Feed header */}
+        {/* Feed header with Filter button */}
         <div className="my-5 px-4 flex items-center justify-between w-full">
           <h3 className="text-xl font-bold text-[#18448A]">Group Feed</h3>
 
-          <button
-            aria-label="Filter"
-            className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-[#E5E7EB] text-[#18448A] bg-white h-10 focus:outline-none focus:ring-2 focus:ring-[#034EA1]"
-            type="button"
-          >
-            <Image src="/filter_alt.svg" alt="" width={18} height={18} className="inline-block" />
-            <span>Filter</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-[#54555A]">
+              {/* small active filter chip */}
+              {selectedFilter === "latest" && <span className="rounded-full px-3 py-1 border border-[#E5E7EB]">Latest Posts</span>}
+              {selectedFilter === "oldest" && <span className="rounded-full px-3 py-1 border border-[#E5E7EB]">Oldest Posts</span>}
+              {selectedFilter === "trending" && <span className="rounded-full px-3 py-1 border border-[#E5E7EB]">Trending</span>}
+            </div>
+
+            <button
+              aria-label="Filter"
+              onClick={openFilter}
+              className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-[#E5E7EB] text-[#18448A] bg-white h-10 focus:outline-none focus:ring-2 focus:ring-[#034EA1]"
+              type="button"
+            >
+              <Image src="/filter_alt.svg" alt="" width={18} height={18} className="inline-block" />
+              <span>Filter</span>
+            </button>
+          </div>
         </div>
 
         {/* Posts area */}
-        <div ref={feedRef} className="relative mt-2 px-4 space-y-4 pb-20">
-          {posts.length === 0 && !loading && (
+        <div ref={feedRef} className="relative mt-2 px-4 space-y-4 pb-28">
+          {sortedPosts.length === 0 && !loading && (
             <div className="text-center text-sm text-[#666] py-8">No posts yet.</div>
           )}
 
-          {posts.map((p) => (
-            // constrain and center each post for mobile-first layout
+          {sortedPosts.map((p) => (
             <div key={p.id} className="w-full max-w-2xl mx-auto">
               <PostCard
                 id={p.id}
@@ -234,7 +273,8 @@ export default function GroupDetailClient({
                 title={p.title}
                 excerpt={p.excerpt}
                 tag={p.tag}
-                initiallyLiked={p.isLiked}
+                initiallyLiked={Boolean(p.isLiked)}
+                likeCount={p.likeCount ?? 0}
                 className="w-full"
               />
             </div>
@@ -251,6 +291,7 @@ export default function GroupDetailClient({
           )}
         </div>
 
+        {/* Create post CTA for members */}
         {currentUser && (
           <div className="fixed left-0 right-0 bottom-4 pointer-events-none z-40">
             <div className="max-w-[390px] mx-auto px-4 pointer-events-auto">
@@ -269,17 +310,12 @@ export default function GroupDetailClient({
           </div>
         )}
 
-        {/* About section visible only for logged-in users */}
+        {/* About section for logged-in users (unchanged) */}
         {currentUser && (
           <div className="mt-6 px-4">
             <div className="mx-auto w-full rounded-[12px] border border-[#E5E7EB] bg-white p-4">
               <h3 className="text-[20px] leading-6 font-bold text-[#18448A]">About this group</h3>
-
-              <p className="mt-3 text-[14px] leading-5 text-[#54555A]">
-                {group?.description ??
-                  "Our diabetes support group has been serving the Whitefield community for over 3 years."}
-              </p>
-
+              <p className="mt-3 text-[14px] leading-5 text-[#54555A]">{group?.description}</p>
               <div className="mt-4 space-y-1 text-[14px] leading-[22px] text-[#333333]">
                 <p>
                   <span className="font-bold">Created:</span>
@@ -305,10 +341,59 @@ export default function GroupDetailClient({
           </div>
         )}
       </div>
+
+      {/* Filter Bottom Sheet */}
+      {filterOpen && (
+        <div className="fixed inset-0 z-50">
+          {/* dim backdrop */}
+          <div className="absolute inset-0 bg-black/30" onClick={closeFilter} />
+
+          <div className="absolute left-0 right-0 bottom-0 bg-white rounded-t-xl p-4 shadow-lg" style={{ boxShadow: "0 -20px 30px rgba(0,0,0,0.12)" }}>
+            <div className="w-full max-w-[390px] mx-auto">
+              <h4 className="text-[16px] font-semibold text-[#333333] mb-3">Filter by</h4>
+
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedFilter("latest")}
+                  className={`w-full text-left rounded-lg px-4 py-3 border ${selectedFilter === "latest" ? "border-[#18448A] bg-white text-[#18448A]" : "border-[#E5E7EB] bg-white text-[#333333]"}`}
+                >
+                  Latest Post
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedFilter("oldest")}
+                  className={`w-full text-left rounded-lg px-4 py-3 border ${selectedFilter === "oldest" ? "border-[#18448A] bg-white text-[#18448A]" : "border-[#E5E7EB] bg-white text-[#333333]"}`}
+                >
+                  Oldest Post
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedFilter("trending")}
+                  className={`w-full text-left rounded-lg px-4 py-3 border ${selectedFilter === "trending" ? "border-[#18448A] bg-white text-[#18448A]" : "border-[#E5E7EB] bg-white text-[#333333]"}`}
+                >
+                  Top Trending
+                </button>
+              </div>
+
+              <div className="mt-4">
+                <button
+                  onClick={applyFilterAndClose}
+                  className="w-full h-12 rounded-lg text-white font-medium"
+                  style={{ background: "linear-gradient(90deg, #18448A 0%, #16AF9F 85%)" }}
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
 /* helper components (same as earlier version) */
 function GroupStatsCard({
   postsThisWeek = 45,

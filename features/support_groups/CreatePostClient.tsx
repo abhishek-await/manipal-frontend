@@ -64,7 +64,7 @@ export default function CreatePostClient({
 
     setLoading(true);
     try {
-      const payload = { title: title.trim() || undefined, content: content.trim(), tag: tag.trim() || undefined };
+      const payload = { title: title.trim() || undefined, content: content.trim(), tag: tag.trim() || undefined, category: 0 };
 
       // Attempt to use your API helper; if it ignores the payload the backend may still handle it,
       // otherwise adjust groupApi.createPost to accept and forward a body.

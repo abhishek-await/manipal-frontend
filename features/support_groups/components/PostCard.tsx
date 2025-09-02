@@ -20,6 +20,7 @@ export type PostCardProps = {
 
   // optional: initial liked state if the backend supplies it later
   initiallyLiked?: boolean;
+  likeCount?: number
 };
 
 export default function PostCard({
@@ -32,6 +33,7 @@ export default function PostCard({
   tag,
   className = "",
   initiallyLiked = false,
+  likeCount,
 }: PostCardProps) {
   const router = useRouter();
   const [liked, setLiked] = useState<boolean>(initiallyLiked);
@@ -125,6 +127,9 @@ export default function PostCard({
             </div>
 
             <span className={`text-sm ${liked ? "text-[#00A79C]" : ""}`}>Like</span>
+            {/* {typeof likeCount === "number" && likeCount > 0 && (
+              <span className="ml-2 text-xs text-[#6B7280]">· {likeCount}</span>
+            )} */}
           </button>
 
           <button className="flex items-center gap-2 text-gray-600 px-2 py-1">

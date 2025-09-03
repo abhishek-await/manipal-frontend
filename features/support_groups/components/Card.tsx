@@ -1,4 +1,4 @@
-// features/support_groups/components/SupportGroupCard.tsx
+// features/support_groups/SupportGroupCard.tsx
 "use client";
 
 import Image from "next/image";
@@ -131,13 +131,17 @@ export default function SupportGroupCard({
     }
   };
 
-  // click handlers for primary action (join/leave) and follow
-  const handlePrimaryClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  // IMPORTANT FIX: when this card is wrapped by a Link (anchor), clicks inside the anchor
+  // will still navigate unless we call e.preventDefault() on the inner button.
+  // So the primary and follow handlers MUST call both preventDefault and stopPropagation.
+  const handlePrimaryClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();   // Prevent anchor navigation when card is wrapped in <Link>
+    e.stopPropagation();  // Stop event reaching card-level handlers
     if (isMember) onLeave?.();
     else onJoin?.();
   };
-  const handleFollowClick = (e: React.MouseEvent) => {
+  const handleFollowClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
     e.stopPropagation();
     onFollow?.();
   };
@@ -168,20 +172,17 @@ export default function SupportGroupCard({
 
   return (
     <article
-      // only expose as button when this card itself will handle navigation (i.e. no parent Link)
       role={!href && variant === "compact" ? "button" : undefined}
       tabIndex={!href && variant === "compact" ? 0 : undefined}
       onClick={navigateToGroup}
       onKeyDown={onKeyDown}
       className={clsx(
-        // make compact full width (parent controls max width)
         variant === "compact"
           ? "w-full rounded-[12px] border border-[#E5E7EB] bg-white p-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#16AF9F]"
           : "w-full rounded-[12px] overflow-hidden bg-white shadow-sm",
         className
       )}
     >
-      {/* detail variant: includes back/share buttons */}
       {isDetail ? (
         <div className="relative bg-gradient-to-b from-[#E8FBF8] to-transparent px-6 pt-6 pb-6">
           <div className="absolute inset-x-0 top-3 px-4 flex items-center justify-between z-20">
@@ -247,7 +248,6 @@ export default function SupportGroupCard({
               </div>
             </div>
 
-            {/* stats */}
             <div className="mt-4 flex items-center gap-6 text-[#54555A]">
               <div className="flex items-center gap-2">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#54555A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -266,7 +266,6 @@ export default function SupportGroupCard({
               </div>
             </div>
 
-            {/* actions */}
             <div className="mt-5 flex items-center gap-3 w-full max-w-[360px]">
               {isMember ? (
                 <div className="flex-1">
@@ -276,7 +275,7 @@ export default function SupportGroupCard({
                 <button
                   type="button"
                   disabled={ctaDisabled}
-                  onClick={(e) => { e.stopPropagation(); handlePrimaryClick(e); }}
+                  onClick={handlePrimaryClick}
                   onMouseDown={(e) => e.stopPropagation()}
                   className={clsx(
                     "flex-1 h-11 rounded-[8px] text-white text-[14px] font-medium",
@@ -289,7 +288,7 @@ export default function SupportGroupCard({
 
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); handleFollowClick(e); }}
+                onClick={handleFollowClick}
                 onMouseDown={(e) => e.stopPropagation()}
                 className={clsx(
                   "h-11 px-4 rounded-[8px] border text-[14px] font-medium",
@@ -302,7 +301,6 @@ export default function SupportGroupCard({
           </div>
         </div>
       ) : (
-        // compact layout used in lists
         <div>
           <div className="flex gap-4">
             <div className="shrink-0">

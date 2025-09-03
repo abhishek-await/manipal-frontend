@@ -64,7 +64,7 @@ export default function CreatePostClient({
 
     setLoading(true);
     try {
-      const payload = { title: title.trim() || undefined, content: content.trim(), tag: tag.trim() || undefined, category: 0 };
+      const payload = { title: title.trim() || undefined, content: content.trim(), tag: tag.trim() || undefined, category: [0] };
 
       // Attempt to use your API helper; if it ignores the payload the backend may still handle it,
       // otherwise adjust groupApi.createPost to accept and forward a body.
@@ -73,7 +73,7 @@ export default function CreatePostClient({
       await groupApi.createPost(groupId, payload);
 
       // redirect to group page after creation
-      router.push(`/support-groups/${groupId}`);
+      router.push(`/group/${groupId}`);
     } catch (err: any) {
       console.error("Create post failed", err);
       if (err?.message?.toLowerCase().includes("unauthorized")) {

@@ -50,7 +50,7 @@ export default async function Page(props: PageProps<'/group/[id]'>) {
   // Server-side fetch posts for this group (public posts endpoint)
   // Use NEXT_PUBLIC_API_URL when configured, otherwise attempt relative path.
   const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
-  const postsUrl = `${API_BASE}/support-groups/posts/${groupId}`
+  const postsUrl = `${API_BASE}/support-groups/groups/${groupId}/posts`
 
   let initialPosts: any[] = [];
   try {

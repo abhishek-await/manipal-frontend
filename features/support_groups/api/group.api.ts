@@ -182,5 +182,53 @@ export const groupApi = {
     }
 
     return res.json()
+  },
+
+  getPost: async (postId: string) => {
+    const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-group/posts/${postId}`,{
+      method: "GET",
+      headers: { 'Content-Type': 'application/json'},
+    })
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`Error getting post: ${res.status} ${text}`)
+    }
+
+    return res.json()
+  },
+
+  getReplies: async (postId: string) => {
+    const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/posts/${postId}/replies`,{
+      method: "GET",
+      headers: { 'Content-Type': 'application/json'},
+    })
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`Error getting replies: ${res.status} ${text}`)
+    }
+
+    return res.json()
+  },
+
+  postReply: async (postId: string, data: {content: string, parentId?: number}) => {
+    console.log("Body: ", JSON.stringify(data))
+    const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/posts/${postId}/reply/`,{
+      method: "POST",
+      headers: { 'Content-Type': 'application/json'},
+      body: JSON.stringify(data) 
+    })
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`Error replying to post: ${res.status} ${text}`)
+    }
+
+
+    console.log("Response: ", res)
+
+    return res.json()
+
   }
 };

@@ -18,8 +18,7 @@ export type PostCardProps = {
   tag: string;
   className?: string;
 
-  // optional: initial liked state if the backend supplies it later
-  initiallyLiked?: boolean;
+  isLiked?: boolean;
   likeCount?: number
 };
 
@@ -32,11 +31,11 @@ export default function PostCard({
   excerpt,
   tag,
   className = "",
-  initiallyLiked = false,
+  isLiked = false,
   likeCount,
 }: PostCardProps) {
   const router = useRouter();
-  const [liked, setLiked] = useState<boolean>(initiallyLiked);
+  const [liked, setLiked] = useState<boolean>(isLiked);
   const [pending, setPending] = useState(false);
 
   const handleLike = async () => {
@@ -66,6 +65,20 @@ export default function PostCard({
     } finally {
       setPending(false);
     }
+  };
+
+  const handleReply = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // navigate to comment page for this post
+    // route used in your app: /support-group/[id]/comment
+    const href = `/support-group/${id}/comment`;
+    // prefetch is a noop on client but safe to call when available
+    try {
+      router.prefetch?.(href);
+    } catch {
+      /* ignore */
+    }
+    router.push(href);
   };
 
   return (
@@ -132,7 +145,7 @@ export default function PostCard({
             )} */}
           </button>
 
-          <button className="flex items-center gap-2 text-gray-600 px-2 py-1">
+          <button className="flex items-center gap-2 text-gray-600 px-2 py-1" onClick={handleReply} aria-label="reply" type="button">
             <Image src="/chat_bubble.svg" alt="Reply" width={20} height={20} />
             <span>Reply</span>
           </button>

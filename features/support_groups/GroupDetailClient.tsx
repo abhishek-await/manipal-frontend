@@ -8,19 +8,8 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { authApi } from "@/features/auth/api/auth.api";
 import { groupApi } from "@/features/support_groups/api/group.api";
+import { PostCardProps as Post } from "@/features/support_groups/components/PostCard";
 
-type Post = {
-  id: string;
-  avatar: string;
-  name: string;
-  time: string; // human-friendly
-  title: string;
-  excerpt: string;
-  tag: string;
-  createdAt?: string; // ISO date string if available
-  isLiked?: boolean;
-  likeCount?: number;
-};
 
 export default function GroupDetailClient({
   initialGroup,
@@ -88,7 +77,7 @@ export default function GroupDetailClient({
 
   // Helper: get epoch from post (createdAt preferred)
   const getPostTime = (p: Post) => {
-    const t = p.createdAt ?? p.time;
+    const t = p.time;
     const d = Date.parse(t || "");
     return Number.isNaN(d) ? 0 : d;
   };
@@ -273,7 +262,7 @@ export default function GroupDetailClient({
                 title={p.title}
                 excerpt={p.excerpt}
                 tag={p.tag}
-                initiallyLiked={Boolean(p.isLiked)}
+                isLiked={Boolean(p.isLiked)}
                 likeCount={p.likeCount ?? 0}
                 className="w-full"
               />

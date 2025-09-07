@@ -149,7 +149,7 @@ export default function CommentClient({
 
     try {
       // call API
-      const payload = { content, parentId: replyToId ? Number(replyToId) : undefined };
+      const payload = { content, parent_id: replyToId ? Number(replyToId) : undefined };
       const created = await groupApi.postReply(postId, payload);
       // API should return created comment object (id, content, created_at, user_name)
       // Replace temp with created
@@ -285,14 +285,26 @@ export default function CommentClient({
             onChange={(e) => setText(e.target.value)}
             onKeyDown={onKeyDown}
             rows={1}
-            className="flex-1 resize-none rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#16AF9F]"
+            className="flex-1 h-14 resize-none rounded-full px-3 py-4 text-[16px] outline-none focus:ring-2 focus:ring-[#16AF9F]"
           />
           <button
             onClick={submitReply}
             disabled={posting || text.trim().length === 0}
-            className={`h-10 px-4 rounded-lg font-medium ${posting || text.trim().length===0 ? "bg-gray-300 text-gray-600" : "bg-[#16AF9F] text-white"}`}
+            aria-disabled={posting || text.trim().length === 0}
+            aria-busy={posting}
+            type="button"
+            className="h-14 w-14 rounded-full flex items-center justify-center"
+            title={posting ? "Posting…" : "Send reply"}
           >
-            {posting ? "Posting…" : "Send"}
+            {posting ? (
+              // spinner (CSS) — quick and visible. If you prefer an SVG spinner, replace this with <Image src="/spinner.svg" ... />
+              <div className="h-5 w-5 rounded-full border-2 border-white border-t-transparent animate-spin" style={{ borderColor: "white", borderTopColor: "transparent" }} />
+            ) : (
+              // send SVG (use your file path); I've used /send.svg — change if your asset path differs
+              <div className="h-14 w-14 rounded-full bg-[#16AF9F] flex items-center justify-center">
+                <Image src="/send.svg" alt="Send" width={24} height={24} />
+              </div>
+            )}
           </button>
         </div>
 

@@ -212,7 +212,7 @@ export const groupApi = {
     return res.json()
   },
 
-  postReply: async (postId: string, data: {content: string, parentId?: number}) => {
+  postReply: async (postId: string, data: {content: string, parent_id?: number}) => {
     console.log("Body: ", JSON.stringify(data))
     const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/posts/${postId}/reply/`,{
       method: "POST",

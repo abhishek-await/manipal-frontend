@@ -225,7 +225,7 @@ export default function CommentClient({
       </div>
 
       {/* Comments list */}
-      <div className="flex-1 overflow-auto px-4 py-4" ref={listRef}>
+      <div className="flex-1 overflow-auto px-4 py-4 pb-24" ref={listRef}>
         {loadingReplies && <div className="text-center text-sm text-gray-500 py-4">Loading comments…</div>}
         {!loadingReplies && replies.length === 0 && <div className="text-center text-sm text-gray-500 py-4">No comments yet. Be the first to reply.</div>}
         <div className="space-y-4">

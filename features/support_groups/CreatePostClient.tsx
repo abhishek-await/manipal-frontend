@@ -70,10 +70,10 @@ export default function CreatePostClient({
       // otherwise adjust groupApi.createPost to accept and forward a body.
       // (If you prefer, swap this to call authApi.fetchWithAuth directly)
       // @ts-ignore allow extra arg at runtime if API already expects (some code-bases accept it)
-      await groupApi.createPost(groupId, payload);
+      const created = await groupApi.createPost(groupId, payload);
 
       // redirect to group page after creation
-      router.push(`/group/${groupId}`);
+      await router.push(`/group/${groupId}?newPostId=${encodeURIComponent(String(created.id || created.pk || created._id))}`);
     } catch (err: any) {
       console.error("Create post failed", err);
       if (err?.message?.toLowerCase().includes("unauthorized")) {

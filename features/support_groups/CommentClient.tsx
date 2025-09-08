@@ -1,4 +1,3 @@
-// features/support_groups/CommentClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -46,6 +45,7 @@ export default function CommentClient({
     (async () => {
       try {
         const u = await authApi.getCurrentUser();
+        console.log(u)
         if (!mounted) return;
         setCurrentUser(u ?? null);
       } catch (e) {
@@ -125,6 +125,46 @@ export default function CommentClient({
     setReplyingToName(null);
   };
 
+  // Helper: insert optimistic reply in flattened list in the correct position
+  function insertOptimisticReplyAtCorrectPosition(existing: FlatReply[], optimistic: FlatReply, clickedReplyId: string | null) {
+    // If we are replying to a comment (clickedReplyId present), determine displayParentId (top-level parent)
+    // If clickedReplyId references a nested reply, that nested's parentId points to the top-level parent.
+    if (!clickedReplyId) {
+      // top-level reply to the post — preserve previous behavior (prepend newest-first)
+      return [optimistic, ...existing];
+    }
+
+    // Find the clicked item in the flattened list
+    const clicked = existing.find((it) => it.id === clickedReplyId);
+    // If we can't find clicked reply, fall back to prepend
+    if (!clicked) return [optimistic, ...existing];
+
+    // Determine top-level parent id that owns the nested replies group displayed under it.
+    // If clicked.parentId === null => clicked is the top-level parent itself.
+    // If clicked.parentId != null => clicked is a nested reply; use clicked.parentId as display parent.
+    const displayParentId = clicked.parentId ?? Number(clicked.id);
+
+    // Find index of the top-level parent in the flattened list (parent item has id = displayParentId)
+    const parentIndex = existing.findIndex((it) => it.id === String(displayParentId) && (it.parentId === null || it.parentId === undefined));
+    const fallbackParentIndex = existing.findIndex((it) => it.id === String(displayParentId));
+
+    const pIndex = parentIndex !== -1 ? parentIndex : fallbackParentIndex;
+    if (pIndex === -1) {
+      // parent not found for some reason — fallback to prepend
+      return [optimistic, ...existing];
+    }
+
+    // insert after all existing replies that have parentId === displayParentId
+    let insertIndex = pIndex + 1;
+    while (insertIndex < existing.length && existing[insertIndex].parentId === displayParentId) {
+      insertIndex++;
+    }
+
+    const copy = existing.slice();
+    copy.splice(insertIndex, 0, optimistic);
+    return copy;
+  }
+
   const submitReply = async () => {
     const content = text.trim();
     if (!content) return;
@@ -135,41 +175,53 @@ export default function CommentClient({
     }
 
     setPosting(true);
-    // optimistic UI: create a temp reply object and append
+    // optimistic UI: create a temp reply object and insert at correct position
     const tempId = `temp-${Date.now()}`;
     const optimistic: FlatReply = {
       id: tempId,
       content,
       created_at: new Date().toISOString(),
-      user_name: currentUser?.first_name ?? currentUser?.name ?? "You",
+      user_name: currentUser?.first_name ?? currentUser?.user_name ?? "You",
       parentId: replyToId ? Number(replyToId) : null,
       replyingTo: replyingToName ?? null,
     };
-    setReplies((r) => [optimistic, ...r]); // newest first
+
+    // Insert optimistically in the correct position
+    setReplies((prev) => {
+      const next = insertOptimisticReplyAtCorrectPosition(prev, optimistic, replyToId);
+      // after setReplies completes, scroll into view — we will attempt below via setTimeout
+      return next;
+    });
 
     try {
       // call API
       const payload = { content, parent_id: replyToId ? Number(replyToId) : undefined };
       const created = await groupApi.postReply(postId, payload);
-      // API should return created comment object (id, content, created_at, user_name)
-      // Replace temp with created
-      setReplies((r) =>
-        r.map((it) => (it.id === tempId ? {
-          id: String(created.id ?? created.pk ?? created._id ?? created.temp_id),
-          content: created.content ?? content,
-          created_at: created.created_at ?? new Date().toISOString(),
-          user_name: created.user_name ?? created.user?.name ?? optimistic.user_name,
-          parentId: created.parent_id ?? optimistic.parentId ?? null,
-          replyingTo: optimistic.replyingTo ?? null,
-        } : it))
+
+      // Replace temp with created object (map id and fields)
+      const createdId = String(created.id ?? created.pk ?? created._id ?? created.temp_id ?? Date.now());
+      setReplies((prev) =>
+        prev.map((it) =>
+          it.id === tempId
+            ? {
+                id: createdId,
+                content: created.content ?? content,
+                created_at: created.created_at ?? new Date().toISOString(),
+                user_name: created.user_name ?? created.user?.name ?? optimistic.user_name,
+                parentId: created.parent_id ?? optimistic.parentId ?? null,
+                replyingTo: optimistic.replyingTo ?? null,
+              }
+            : it
+        )
       );
+
       setText("");
       cancelReply();
-      // scroll to top of list or newly created comment if desired
+
+      // scroll to the newly-created reply element (use createdId if available, else tempId)
       setTimeout(() => {
-        if (listRef.current) {
-          listRef.current.scrollTo({ top: 0, behavior: "smooth" });
-        }
+        const node = listRef.current?.querySelector<HTMLElement>(`[data-reply-id="${createdId}"]`);
+        if (node) node.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 50);
     } catch (err: any) {
       // rollback optimistic update
@@ -201,7 +253,7 @@ export default function CommentClient({
       <div className="px-4 py-3 border-b bg-white flex items-center gap-3">
         <button
           aria-label="Back"
-          onClick={() => router.push("/home")}
+          onClick={() => router.back()}
           className="h-8 w-8 flex items-center justify-center rounded-md"
         >
           <Image src="/back.svg" alt="back" width={18} height={18} />
@@ -230,7 +282,8 @@ export default function CommentClient({
         {!loadingReplies && replies.length === 0 && <div className="text-center text-sm text-gray-500 py-4">No comments yet. Be the first to reply.</div>}
         <div className="space-y-4">
           {replies.map((r) => (
-            <div key={r.id} className="bg-white border rounded-xl p-3">
+            // add data-reply-id so we can scroll to a specific reply DOM node
+            <div key={r.id} data-reply-id={r.id} className="bg-white border rounded-xl p-3">
               <div className="flex gap-3 items-start">
                 <div className="h-9 w-9 rounded-full overflow-hidden bg-gray-100">
                   {/* avatar placeholder */}

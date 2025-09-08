@@ -81,6 +81,43 @@ export default function PostCard({
     router.push(href);
   };
 
+  const handleShare = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    try {
+      // pick a sensible default share url for a post. Change this if your canonical post URL differs.
+      const url = (typeof window !== "undefined" && `${window.location.origin}/support-group/${id}/comment`) || `/support-group/${id}/comment`;
+      const shareTitle = title || "Check out this post";
+
+      // Web Share API
+      if ((navigator as any)?.share) {
+        await (navigator as any).share({ title: shareTitle, url });
+        return;
+      }
+
+      // Clipboard API fallback
+      if ((navigator as any)?.clipboard) {
+        await (navigator as any).clipboard.writeText(url);
+        // replace this alert with your toast system if you have one
+        alert("Link copied to clipboard");
+        return;
+      }
+
+      // final fallback
+      window.prompt("Copy this link", url);
+    } catch (err) {
+      console.warn("share failed", err);
+      // best-effort fallback: still try prompt
+      try {
+        const url = (typeof window !== "undefined" && `${window.location.origin}/support-group/${id}/comment`) || `/support-group/${id}/comment`;
+        window.prompt("Copy this link", url);
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+
   return (
     <Card className={`w-full border border-gray-200 rounded-xl shadow-sm ${className}`}>
       <CardContent className="p-2">
@@ -150,7 +187,7 @@ export default function PostCard({
             <span>Reply</span>
           </button>
 
-          <button className="flex items-center gap-2 text-gray-600 px-2 py-1">
+          <button className="flex items-center gap-2 text-gray-600 px-2 py-1" onClick={handleShare} aria-label="share" type="button">
             <Image src="/share.svg" alt="Share" width={20} height={20} />
             <span>Share</span>
           </button>

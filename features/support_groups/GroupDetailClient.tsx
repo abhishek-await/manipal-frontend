@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState, useMemo } from "react";
 import SupportGroupCard, { SupportGroupCardProps } from "@/features/support_groups/components/Card";
 import PostCard from "@/features/support_groups/components/PostCard";
 import JoinPromptCard from "@/features/support_groups/components/JoinPromptCard";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { authApi } from "@/features/auth/api/auth.api";
 import { groupApi } from "@/features/support_groups/api/group.api";
@@ -28,6 +28,7 @@ export default function GroupDetailClient({
   const [group, setGroup] = useState<SupportGroupCardProps | null>(initialGroup);
   const [posts, setPosts] = useState<Post[]>(initialPosts ?? []);
   const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams()
 
   // auth / membership
   const [currentUser, setCurrentUser] = useState<any | null>(initialCurrentUser ?? null);
@@ -38,6 +39,47 @@ export default function GroupDetailClient({
   // filtering UI state
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<"latest" | "oldest" | "trending">("latest");
+
+  useEffect(() => {
+    // If the URL contains newPostId, refresh posts from server
+    const newId = searchParams?.get("newPostId");
+    if (!newId) return;
+
+    // fetch latest posts and remove the param from url
+    let mounted = true;
+    (async () => {
+      try {
+        const json = await groupApi.getPosts(groupId);
+        if (!mounted) return;
+        const fresh = json.map((p: any) => ({
+          id: String(p.id),
+          avatar: p.avatar_url ?? "/avatars/omar.png",
+          name: p.full_name ?? "Unknown",
+          time: p.created_at ?? "2 hours ago",
+          title: p.title ?? "Post",
+          excerpt: p.content ?? "",
+          tag: p.tag ?? "General",
+          isLiked: p.is_liked_by_user,
+          likeCount: p.like_count
+          // we intentionally do not include per-post stats fields anymore,
+          // front-end will not render them (you requested removal).
+        }));
+        setPosts(fresh);
+        // remove query param to keep URL clean
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("newPostId");
+          window.history.replaceState({}, "", url.toString());
+        } catch (e) {
+          // ignore
+        }
+      } catch (err) {
+        console.warn("Could not refresh posts after creating one", err);
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, [searchParams, groupId]);
 
   useEffect(() => {
     let mounted = true;

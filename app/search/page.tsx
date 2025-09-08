@@ -3,6 +3,7 @@ import React, { Suspense } from "react";
 import SearchPageClient from "@/features/search/SearchPageClient";
 import { groupApi } from "@/features/support_groups/api/group.api";
 import { SupportGroupCardProps as Card } from "@/features/support_groups/components/Card";
+import { cookies } from "next/headers";
 
 // Tell Next this route is dynamic (allows server fetches with no-store)
 export const dynamic = "force-dynamic";
@@ -10,7 +11,9 @@ export const dynamic = "force-dynamic";
 export default async function Page() {
   try {
     // run server-side fetch (groupApi.getGroups uses cache: "no-store")
-    const allGroups = (await groupApi.getGroups()) as any[];
+    const cookieStore = await cookies()
+    const access = cookieStore.get('accessToken')?.value ?? ""
+    const allGroups = (await groupApi.getGroups(access)) as any[];
 
     const sorted = (allGroups ?? []).slice().sort((a, b) => {
       const ga = Number(a?.growthPercentage ?? 0);

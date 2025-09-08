@@ -97,53 +97,53 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
   }, [])
 
   // whenever displayedGroups change, check membership only for those groups
-  useEffect(() => {
-    let mounted = true
-    if (!displayedGroups || displayedGroups.length === 0) return
+  // useEffect(() => {
+  //   let mounted = true
+  //   if (!displayedGroups || displayedGroups.length === 0) return
 
-    // if no logged in user, membership false for all (same as before)
-    if (!currentUser) {
-      setMembershipMap((prev) => {
-        const copy = { ...prev }
-        displayedGroups.forEach((g) => {
-          if (copy[g.id] === undefined) copy[g.id] = false
-        })
-        return copy
-      })
-      return
-    }
+  //   // if no logged in user, membership false for all (same as before)
+  //   if (!currentUser) {
+  //     setMembershipMap((prev) => {
+  //       const copy = { ...prev }
+  //       displayedGroups.forEach((g) => {
+  //         if (copy[g.id] === undefined) copy[g.id] = false
+  //       })
+  //       return copy
+  //     })
+  //     return
+  //   }
 
     // check membership for each displayed group (do in parallel)
-    ;(async () => {
-      const checks = displayedGroups.map(async (g) => {
-        // skip groups that have a pending join/leave
-        if (pendingRef.current.has(String(g.id))) {
-          // keep the optimistic value if present, otherwise fallback to false
-          return { id: g.id, isMember: Boolean(membershipMap[g.id]) ?? false }
-        }
+  //   ;(async () => {
+  //     const checks = displayedGroups.map(async (g) => {
+  //       // skip groups that have a pending join/leave
+  //       if (pendingRef.current.has(String(g.id))) {
+  //         // keep the optimistic value if present, otherwise fallback to false
+  //         return { id: g.id, isMember: Boolean(membershipMap[g.id]) ?? false }
+  //       }
 
-        try {
-          const members = await groupApi.listMembers(g.id)
-          const isMember = Array.isArray(members) && members.some((m: any) => String(m.id) === String(currentUser.id))
-          return { id: g.id, isMember }
-        } catch (err) {
-          return { id: g.id, isMember: false }
-        }
-      })
+  //       try {
+  //         const members = await groupApi.listMembers(g.id)
+  //         const isMember = Array.isArray(members) && members.some((m: any) => String(m.id) === String(currentUser.id))
+  //         return { id: g.id, isMember }
+  //       } catch (err) {
+  //         return { id: g.id, isMember: false }
+  //       }
+  //     })
 
-      const results = await Promise.all(checks)
-      if (!mounted) return
-      setMembershipMap((prev) => {
-        const copy = { ...prev }
-        results.forEach((r) => (copy[r.id] = r.isMember))
-        return copy
-      })
-    })()
+  //     const results = await Promise.all(checks)
+  //     if (!mounted) return
+  //     setMembershipMap((prev) => {
+  //       const copy = { ...prev }
+  //       results.forEach((r) => (copy[r.id] = r.isMember))
+  //       return copy
+  //     })
+  //   })()
 
-    return () => {
-      mounted = false
-    }
-  }, [displayedGroups, currentUser])
+  //   return () => {
+  //     mounted = false
+  //   }
+  // }, [displayedGroups, currentUser])
 
   // ----- join / leave handlers -----
   const handleJoin = async (groupId: string) => {
@@ -305,7 +305,7 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
                         {...c}
                         href={href}
                         className="w-full"
-                        isMember={!!membershipMap[c.id]}
+                        isMember={c.isMember}
                         onJoin={() => handleJoin(c.id)}
                         onLeave={() => handleLeave(c.id)}
                       />

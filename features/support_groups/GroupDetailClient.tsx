@@ -21,7 +21,7 @@ export default function GroupDetailClient({
   initialGroup: SupportGroupCardProps | null;
   initialPosts: Post[]; // provided by server (may be empty array)
   initialCurrentUser: any | null;
-  initialIsMember: boolean | null;
+  initialIsMember: boolean;
   groupId: string;
 }) {
   const router = useRouter();

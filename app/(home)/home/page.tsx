@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import SupportGroupsClient from '@/features/support_groups/SupportGroupsClient'
 import { groupApi } from '@/features/support_groups/api/group.api'
 import { SupportGroupCardProps as Card } from '@/features/support_groups/components/Card'
+import { cookies } from 'next/headers';
 
 type ChipItem = { id: string; label: string; count: number }
 type Stats = {
@@ -60,7 +61,9 @@ function buildStatsFromGroups(groups: Card[]): Stats {
 
 export default async function Page() {
   // Use your API helper (no modifications to it)
-  const apiGroups = await groupApi.getGroups() // <-- your function used here
+  const cookieStore = await cookies()
+  const access = cookieStore.get('accessToken')?.value ?? ""
+  const apiGroups = await groupApi.getGroups(access) // <-- your function used here
 
   // If apiGroups already include category, use them directly for chips/stats.
   // Otherwise fetch raw objects from backend only for building chips/stats.
@@ -75,6 +78,7 @@ export default async function Page() {
     totalDiscussions: 0,
   }
 
+  console.log("Groups: ", apiGroups)
   // Pass server-computed values down to the client component
   return (
     // SupportGroupsClient should accept these props (initialGroups, initialChipItems, initialStats)

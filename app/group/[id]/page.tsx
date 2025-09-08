@@ -10,10 +10,13 @@ export default async function Page(props: PageProps<'/group/[id]'>) {
   const groupId = id
   if (!groupId) return <div>Group id missing</div>;
 
+  const cookieStore = await cookies()
+  const access = cookieStore.get('accessToken')?.value ?? ""
+
   // Fetch group details (server-side)
-  let rawGroup: any = null;
+  let rawGroup: any = null
   try {
-    rawGroup = await groupApi.getGroup(groupId).catch(() => null);
+    rawGroup = await groupApi.getGroup(groupId,access).catch(() => null);
   } catch (err) {
     console.error("group fetch error", err);
     rawGroup = null;
@@ -41,7 +44,7 @@ export default async function Page(props: PageProps<'/group/[id]'>) {
           ],
     ctaText: "Join Group",
     variant: "detail",
-    isMember: false,
+    isMember: rawGroup.is_member,
     isFollowing: false,
     growthPercentage: rawGroup?.growth_percentage,
     createdText: rawGroup?.created_at,
@@ -90,13 +93,15 @@ export default async function Page(props: PageProps<'/group/[id]'>) {
     console.warn("Error fetching posts server-side", err);
   }
 
+  const initialIsMember = mappedGroup.isMember ?? false
+
   // Pass server-provided posts down to client
   return (
     <GroupDetailClient
       initialGroup={mappedGroup}
       initialPosts={initialPosts}
       initialCurrentUser={null}
-      initialIsMember={null}
+      initialIsMember={initialIsMember}
       groupId={groupId}
     />
   );

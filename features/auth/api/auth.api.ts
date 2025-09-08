@@ -1,6 +1,5 @@
 import { MobileNumberFormData } from '@/features/auth/validation/login.schema';
 import { SignupFormData } from '@/features/auth/validation/signup.schema';
-import { Days_One } from 'next/font/google';
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 

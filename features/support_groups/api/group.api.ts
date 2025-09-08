@@ -4,11 +4,13 @@ import { authApi } from "@/features/auth/api/auth.api";
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export const groupApi = {
-  getGroups: async () => {
+  getGroups: async (access: string) => {
+    console.log("Access: ", access)
     const response = await fetch(`${API_BASE_URL}/support-groups/groups/`,{
         method: "GET",
         headers: {
             'Content-Type': 'application/json',
+            Authorization: `Bearer ${access}`
         },
         cache: "no-store"
     })
@@ -35,7 +37,8 @@ export const groupApi = {
         ],
         category: {id: g.category.id , name: g.category.name},
         totalPosts: g.total_posts,
-        growthPercentage: g.growth_percentage
+        growthPercentage: g.growth_percentage,
+        isMember: g.is_member
     }))
   },
 
@@ -139,11 +142,12 @@ export const groupApi = {
     return res.json() // should be an array of user objects
   },
 
-  getGroup: async (id: string) => {
+  getGroup: async (id: string, access: string) => {
     const res = await fetch(`${API_BASE_URL}/support-groups/groups/${id}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${access}`
       },
       cache: "no-store"
     })

@@ -123,6 +123,13 @@ export default function LoginForm() {
       } else {
         if (response.profile_complete) {
           authApi.clearTokens();
+          const access = response.tokens.access
+          const refresh = response.tokens.refresh
+          await fetch('/api/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ access, refresh }),
+          })
           authApi.saveTokens(response.tokens.access, response.tokens.refresh);
           router.push("/home");
         } else {

@@ -67,6 +67,13 @@ export default function SignUpForm(token: SignUpFormProps) {
     try {
       const response = await authApi.signup(data, token);
       authApi.clearTokens();
+      const access = response.access
+      const refresh = response.refresh
+      await fetch('/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access, refresh }),
+      })
       authApi.saveTokens(response.access, response.refresh);
       setShowSuccess(true);
     } catch (error) {

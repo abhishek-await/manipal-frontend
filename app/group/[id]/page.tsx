@@ -29,7 +29,7 @@ export default async function Page(props: PageProps<'/group/[id]'>) {
     rating: Number(rawGroup?.rating ?? 4.9),
     reviews: rawGroup?.reviews ?? rawGroup?.total_reviews ?? 0,
     updatedText: rawGroup?.updated_at,
-    members: rawGroup?.total_members ?? rawGroup?.members ?? 0,
+    members: rawGroup?.total_members ?? 0,
     experts: rawGroup?.total_experts ?? rawGroup?.experts ?? 0,
     avatars:
       rawGroup?.avatars?.length > 0

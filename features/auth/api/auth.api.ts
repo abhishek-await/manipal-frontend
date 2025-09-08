@@ -92,8 +92,13 @@ export const authApi = {
     return response.json();
   },
 
-  saveTokens: (access: string, refresh: string) => {
+  saveTokens: async (access: string, refresh: string) => {
     try {
+      // await fetch('/api/token', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ access, refresh }),
+      // })
       localStorage.setItem(ACCESS_KEY, access)
       localStorage.setItem(REFRESH_KEY, refresh)
     } catch (e) {
@@ -101,8 +106,12 @@ export const authApi = {
     }
   },
 
-  clearTokens: () => {
+  clearTokens: async () => {
     try {
+      // await fetch('/api/token', {
+      //   method: 'DELETE',
+      //   headers: { 'Content-Type': 'application/json' },
+      // })
       localStorage.removeItem(ACCESS_KEY)
       localStorage.removeItem(REFRESH_KEY)
     } catch (e) {
@@ -112,11 +121,18 @@ export const authApi = {
 
   getTokens: () : Tokens  => {
     try {
+      // const res = await fetch('/api/token', {
+      //   method: 'GET',
+      //   headers: { 'Content-Type': 'application/json' },
+      // })
+      // const {accessCookie, refreshCookie} = await res.json()
+      // console.log(accessCookie,refreshCookie)
       return {
         access: localStorage.getItem(ACCESS_KEY),
         refresh: localStorage.getItem(REFRESH_KEY),
       }
     } catch (e) {
+      // console.error("Error getting cookies", e)
       return { access: null, refresh: null }
     }
   },
@@ -161,6 +177,8 @@ export const authApi = {
   fetchWithAuth: async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const { access } = authApi.getTokens()
 
+    // console.log("access, ", access)
+
     const baseInit: RequestInit = {
       ...init,
       headers: {
@@ -170,9 +188,11 @@ export const authApi = {
       },
     }
 
+    // console.log("Input, ", input)
+    // console.log("Base, ", baseInit)
+
     let response = await fetch(input, baseInit)
 
-    // if auth failed, attempt a refresh and retry once
     if (response.status === 401) {
       const refreshed = await authApi.refreshAccessToken()
       if (refreshed?.access) {
@@ -186,7 +206,6 @@ export const authApi = {
         }
         response = await fetch(input, retryInit)
       } else {
-        // refresh failed -> no tokens
         throw new Error('Unauthorized')
       }
     }

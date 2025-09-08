@@ -230,5 +230,19 @@ export const groupApi = {
 
     return res.json()
 
+  },
+  
+  getPosts: async (groupId: string) => {
+    const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/groups/${groupId}/posts`,{
+      method: "GET",
+      headers: { 'Content-Type': 'application/json'},
+    })
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`Error fetching posts: ${res.status} ${text}`)
+    }
+
+    return res.json()
   }
 };

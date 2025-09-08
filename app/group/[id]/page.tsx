@@ -3,6 +3,7 @@ import React from "react";
 import GroupDetailClient from "@/features/support_groups/GroupDetailClient";
 import { groupApi } from "@/features/support_groups/api/group.api";
 import { SupportGroupCardProps } from "@/features/support_groups/components/Card";
+import { cookies } from "next/headers";
 
 export default async function Page(props: PageProps<'/group/[id]'>) {
   const {id} = await props.params;
@@ -54,28 +55,36 @@ export default async function Page(props: PageProps<'/group/[id]'>) {
 
   let initialPosts: any[] = [];
   try {
-    // cache: 'no-store' ensures fresh data on each request (avoid stale on Vercel)
-    const res = await fetch(postsUrl, { cache: "no-store" });
+    const cookieStore = await cookies()
+    const access = cookieStore.get('accessToken')?.value
+    console.log('access: ', access)
+    const res = await fetch(postsUrl, {
+      method: "GET",
+      headers: {
+        'Content-Type': "application/json",
+        Authorization: `Bearer ${access}`
+      },  
+    });
     const json = await res.json()
     console.log("[Post fetch]: ", json)
-    if (res.ok) {
+    if (true) {
       if (Array.isArray(json)) {
         initialPosts = json.map((p: any) => ({
-          id: String(p.id ?? Math.random()),
+          id: String(p.id),
           avatar: p.avatar_url ?? "/avatars/omar.png",
-          name: p.full_name ?? p.email ?? "Unknown",
+          name: p.full_name ?? "Unknown",
           time: p.created_at ?? "2 hours ago",
-          title: p.title ?? (p.content ? String(p.content).slice(0, 60) : "Post"),
+          title: p.title ?? "Post",
           excerpt: p.content ?? "",
           tag: p.tag ?? (rawGroup?.category?.name ?? "General"),
-          isLiked: p.is_like_by_user,
+          isLiked: p.is_liked_by_user,
           likeCount: p.like_count
           // we intentionally do not include per-post stats fields anymore,
           // front-end will not render them (you requested removal).
         }));
       }
     } else {
-      console.warn("Posts fetch returned non-ok status", res.status);
+      console.warn("Posts fetch returned non-ok status");
     }
   } catch (err) {
     console.warn("Error fetching posts server-side", err);

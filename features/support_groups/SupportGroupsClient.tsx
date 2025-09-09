@@ -53,21 +53,17 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
   const [chipItems, setChipItems] = useState<ChipItem[]>(initialChipItems ?? [])
   const [stats, setStats] = useState<Stats | undefined>(initialStats)
 
-  // If you ever want to refresh on client, you can add a fetch and update these states.
-
   const [selectedChip, setSelectedChip] = useState<ChipItem | undefined>()
   const visibleGroups = useMemo(() => {
     if (!selectedChip) return groups
     return groups.filter((g: any) => {
       const catIdOrName = g?.category?.id ?? g?.category?.name ?? ''
-      // Note: server mapped card may not have category — if you need category in client, pass it down
       return String(catIdOrName) === selectedChip.id
     })
   }, [groups, selectedChip])
 
   const [visibleCount, setVisibleCount] = useState<number>(PAGE_SIZE)
   useEffect(() => {
-    // reset on filter change
     setVisibleCount(PAGE_SIZE)
   }, [selectedChip, groups])
 
@@ -76,7 +72,7 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
   const allLoaded = visibleCount >= visibleGroups.length
 
   const [currentUser, setCurrentUser] = useState<any | null>(null)
-  // map of groupId -> boolean
+  // map of groupId -> boolean (truthy = member)
   const [membershipMap, setMembershipMap] = useState<Record<string, boolean>>({})
 
   const pendingRef = React.useRef(new Set<string>())
@@ -96,54 +92,21 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
     return () => { mounted = false }
   }, [])
 
-  // whenever displayedGroups change, check membership only for those groups
-  // useEffect(() => {
-  //   let mounted = true
-  //   if (!displayedGroups || displayedGroups.length === 0) return
-
-  //   // if no logged in user, membership false for all (same as before)
-  //   if (!currentUser) {
-  //     setMembershipMap((prev) => {
-  //       const copy = { ...prev }
-  //       displayedGroups.forEach((g) => {
-  //         if (copy[g.id] === undefined) copy[g.id] = false
-  //       })
-  //       return copy
-  //     })
-  //     return
-  //   }
-
-    // check membership for each displayed group (do in parallel)
-  //   ;(async () => {
-  //     const checks = displayedGroups.map(async (g) => {
-  //       // skip groups that have a pending join/leave
-  //       if (pendingRef.current.has(String(g.id))) {
-  //         // keep the optimistic value if present, otherwise fallback to false
-  //         return { id: g.id, isMember: Boolean(membershipMap[g.id]) ?? false }
-  //       }
-
-  //       try {
-  //         const members = await groupApi.listMembers(g.id)
-  //         const isMember = Array.isArray(members) && members.some((m: any) => String(m.id) === String(currentUser.id))
-  //         return { id: g.id, isMember }
-  //       } catch (err) {
-  //         return { id: g.id, isMember: false }
-  //       }
-  //     })
-
-  //     const results = await Promise.all(checks)
-  //     if (!mounted) return
-  //     setMembershipMap((prev) => {
-  //       const copy = { ...prev }
-  //       results.forEach((r) => (copy[r.id] = r.isMember))
-  //       return copy
-  //     })
-  //   })()
-
-  //   return () => {
-  //     mounted = false
-  //   }
-  // }, [displayedGroups, currentUser])
+  // Initialize membershipMap entries for displayed groups so card reads have a value immediately.
+  // This just seeds missing entries with server-provided c.isMember (if present) or false.
+  useEffect(() => {
+    if (!displayedGroups || displayedGroups.length === 0) return
+    setMembershipMap((prev) => {
+      const copy = { ...prev }
+      displayedGroups.forEach((g) => {
+        if (copy[g.id] === undefined) {
+          // if the server-supplied card object included isMember, use it; otherwise default false
+          copy[g.id] = Boolean((g as any).isMember) ?? false
+        }
+      })
+      return copy
+    })
+  }, [displayedGroups])
 
   // ----- join / leave handlers -----
   const handleJoin = async (groupId: string) => {
@@ -155,14 +118,13 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
     // mark pending to stop background checks from clobbering optimistic update
     pendingRef.current.add(String(groupId))
 
-    // optimistic UI
+    // optimistic UI: set membershipMap and bump member count in groups state
     setMembershipMap((m) => ({ ...m, [groupId]: true }))
     setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, members: (g.members ?? 0) + 1 } : g))
 
     try {
       await groupApi.joinGroup(groupId)
-
-      // Optionally: use response if it returns member object; else revalidate below
+      // success: keep optimistic state
     } catch (err: any) {
       // rollback on error
       setMembershipMap((m) => ({ ...m, [groupId]: false }))
@@ -175,10 +137,9 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
       }
       console.error('Join failed', err)
     } finally {
-      // remove pending then revalidate membership (after slight delay to allow backend to finish)
+      // remove pending then revalidate membership (after slight delay)
       pendingRef.current.delete(String(groupId))
 
-      // small debounce/delay helps if the backend is eventually consistent
       setTimeout(async () => {
         try {
           const members = await groupApi.listMembers(groupId)
@@ -186,12 +147,10 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
           setMembershipMap((m) => ({ ...m, [groupId]: isMember }))
         } catch (e) {
           // keep optimistic state if validation fails
-          // console.warn('validate membership failed', e)
         }
-      }, 600) // 600ms - tweak if needed
+      }, 600)
     }
   }
-
 
   const handleLeave = async (groupId: string) => {
     if (!currentUser) {
@@ -221,7 +180,6 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
     } finally {
       pendingRef.current.delete(String(groupId))
 
-      // revalidate membership after a small delay
       setTimeout(async () => {
         try {
           const members = await groupApi.listMembers(groupId)
@@ -234,8 +192,7 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
     }
   }
 
-
-  // UI (you can copy your page's JSX here; I include the core rendering pieces)
+  // UI
   return (
     <div className="min-h-screen w-full bg-white flex flex-col">
       <main className="w-full flex justify-center">
@@ -258,7 +215,6 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
             </div>
 
             <div className="mt-12">
-              {/* On home page the search bar navigates to /search when interacted */}
               <SearchBar value={q} onChange={setQ} onSubmit={() => {}} onClick={goToSearch} className="w-full" navigateOnInteract={true} />
             </div>
 
@@ -300,12 +256,13 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
                   <div key={c.id} className="w-full max-w-[360px] mx-auto">
                     {/* Wrap card in Link so Next can prefetch */}
                     <Link href={href} prefetch={true} className="block w-full" onPointerEnter={() => { router.prefetch?.(href) }}>
-                      {/* We pass href down to the card so it can avoid its own router.push */}
+                      {/* Pass membershipMap value down to the card so it reflects optimistic changes immediately */}
                       <SupportGroupCard
                         {...c}
                         href={href}
                         className="w-full"
-                        isMember={c.isMember}
+                        // <-- IMPORTANT: source membership from membershipMap (fallback to c.isMember)
+                        isMember={Boolean(membershipMap[c.id] ?? (c as any).isMember)}
                         onJoin={() => handleJoin(c.id)}
                         onLeave={() => handleLeave(c.id)}
                       />
@@ -328,7 +285,6 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
             </div>
           </section>
 
-          {/* You can keep your CTA section unchanged below */}
           <section className="mt-8 mb-10 rounded-none bg-gradient-to-b from-[#16AF9F] to-[#18448A] text-white -mx-6 px-6 py-8">
             <h2 className="text-[28px] leading-9 font-bold text-center">
               Can’t Find the Right
@@ -383,4 +339,3 @@ export function StatTile({
     </div>
   );
 }
-

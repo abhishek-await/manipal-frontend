@@ -19,3 +19,6 @@ export async function GET() {
   const text = await backendRes.text();
   return new NextResponse(text, { status: backendRes.status });
 }
+
+
+

@@ -81,7 +81,8 @@ export default async function Page(props: PageProps<'/group/[id]'>) {
           excerpt: p.content ?? "",
           tag: p.tag ?? (rawGroup?.category?.name ?? "General"),
           isLiked: p.is_liked_by_user,
-          likeCount: p.like_count
+          likeCount: p.like_count,
+          replyCount: p.reply_count,
           // we intentionally do not include per-post stats fields anymore,
           // front-end will not render them (you requested removal).
         }));

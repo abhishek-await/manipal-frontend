@@ -1,6 +1,7 @@
 import React from "react";
 import HeaderMenu from "./HeaderMenu";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function Header({ showMenu = true }: { showMenu?: boolean }) {
   return (

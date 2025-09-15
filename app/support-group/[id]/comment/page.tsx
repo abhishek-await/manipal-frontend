@@ -1,6 +1,5 @@
 // app/support-group/[id]/comment/page.tsx
 import CommentClient from "@/features/support_groups/CommentClient";
-import { API_BASE_URL } from "@/features/support_groups/api/group.api"; // optional; used below
 import React from "react";
 
 type ReplyFromApi = {
@@ -17,6 +16,9 @@ type PostFromApi = {
   content?: string;
   full_name?: string;
   created_at?: string;
+  like_count?: number,
+  reply_count?: number,
+  is_liked_by_user?: boolean
 };
 
 async function safeFetchJson(url: string) {
@@ -25,6 +27,7 @@ async function safeFetchJson(url: string) {
     if (!res.ok) return null;
     return await res.json();
   } catch (e) {
+    console.error(e)
     return null;
   }
 }

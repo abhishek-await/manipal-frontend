@@ -1,3 +1,4 @@
+// features/support_groups/components/PostCard.tsx
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,112 +11,111 @@ import { authApi } from "@/features/auth/api/auth.api";
 
 export type PostCardProps = {
   id: string;
-  avatar: string;
+  avatar?: string;
   name: string;
-  time: string;
-  title: string;
-  excerpt: string;
-  tag: string;
+  time?: string;
+  title?: string;
+  excerpt?: string;
+  tag?: string;
   className?: string;
 
+  // controlled props
   isLiked?: boolean;
-  likeCount?: number
+  likeCount?: number;
+  replyCount?: number;
+
+  // optional callback (when provided parent controls the like action)
+  onToggleLike?: () => Promise<void> | void;
 };
 
 export default function PostCard({
   id,
-  avatar,
+  avatar = "/avatars/omar.png",
   name,
   time,
   title,
   excerpt,
   tag,
   className = "",
-  isLiked = false,
-  likeCount,
+  // controlled props (may be undefined => PostCard will manage itself)
+  isLiked: isLikedProp,
+  likeCount: likeCountProp,
+  replyCount,
+  onToggleLike,
 }: PostCardProps) {
   const router = useRouter();
-  const [liked, setLiked] = useState<boolean>(isLiked);
-  const [pending, setPending] = useState(false);
 
-  const handleLike = async () => {
-    // if already pending, ignore clicks
+  // If parent is not controlling likes, PostCard will manage them itself (legacy behavior)
+  const [likedLocal, setLikedLocal] = useState<boolean>(!!isLikedProp && isLikedProp);
+  const [pending, setPending] = useState(false);
+  const [likeCountLocal, setLikeCountLocal] = useState<number>(likeCountProp ?? 0);
+
+  // If parent passes controlled props, don't use internal local values for display.
+  const isControlled = typeof onToggleLike === "function";
+  const isLikedDisplay = isControlled ? !!isLikedProp : likedLocal;
+  const likeCountDisplay = isControlled ? (likeCountProp ?? 0) : likeCountLocal;
+
+  // legacy internal like handler (only used when parent doesn't provide onToggleLike)
+  const handleLikeInternal = async () => {
     if (pending) return;
 
-    // quick auth check (authApi.getCurrentUser uses localStorage tokens)
     const current = await authApi.getCurrentUser().catch(() => null);
     if (!current) {
-      // redirect to login
       router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
       return;
     }
 
-    // optimistic UI
-    setLiked((l) => !l);
+    setLikedLocal((l) => !l);
     setPending(true);
+
+    // optimistic like count change
+    setLikeCountLocal((c) => (likedLocal ? Math.max(c - 1, 0) : c + 1));
 
     try {
       await groupApi.likePost(String(id));
-      // success - we keep optimistic liked state
     } catch (err) {
-      // rollback on error
+      // rollback
       console.error("like failed", err);
-      setLiked(false);
-      // optional: show toast / notification
+      setLikedLocal(false);
+      setLikeCountLocal((c) => (c > 0 ? c - 1 : 0));
     } finally {
       setPending(false);
     }
   };
 
-  const handleReply = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    // navigate to comment page for this post
-    // route used in your app: /support-group/[id]/comment
-    const href = `/support-group/${id}/comment`;
-    // prefetch is a noop on client but safe to call when available
-    try {
-      router.prefetch?.(href);
-    } catch {
-      /* ignore */
+  // when parent wants to control the like action, call onToggleLike and let parent update props
+  const handleLike = async () => {
+    if (pending) return;
+
+    if (isControlled) {
+      // quick auth check
+      const current = await authApi.getCurrentUser().catch(() => null);
+      if (!current) {
+        router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+        return;
+      }
+      setPending(true);
+      try {
+        await onToggleLike!();
+      } catch (err) {
+        console.error("parent like handler failed", err);
+      } finally {
+        setPending(false);
+      }
+      return;
     }
-    router.push(href);
+
+    // fallback to internal handler
+    return handleLikeInternal();
   };
 
-  const handleShare = async (e: React.MouseEvent) => {
-    e.preventDefault();
+  const handleReply = (e: React.MouseEvent) => {
     e.stopPropagation();
-
+    const href = `/support-group/${id}/comment`;
     try {
-      // pick a sensible default share url for a post. Change this if your canonical post URL differs.
-      const url = (typeof window !== "undefined" && `${window.location.origin}/support-group/${id}/comment`) || `/support-group/${id}/comment`;
-      const shareTitle = title || "Check out this post";
-
-      // Web Share API
-      if ((navigator as any)?.share) {
-        await (navigator as any).share({ title: shareTitle, url });
-        return;
-      }
-
-      // Clipboard API fallback
-      if ((navigator as any)?.clipboard) {
-        await (navigator as any).clipboard.writeText(url);
-        // replace this alert with your toast system if you have one
-        alert("Link copied to clipboard");
-        return;
-      }
-
-      // final fallback
-      window.prompt("Copy this link", url);
-    } catch (err) {
-      console.warn("share failed", err);
-      // best-effort fallback: still try prompt
-      try {
-        const url = (typeof window !== "undefined" && `${window.location.origin}/support-group/${id}/comment`) || `/support-group/${id}/comment`;
-        window.prompt("Copy this link", url);
-      } catch {
-        /* ignore */
-      }
-    }
+      router.prefetch?.(href);
+    } catch {}
+    router.push(href);
   };
 
   return (
@@ -143,9 +143,11 @@ export default function PostCard({
 
             {/* Tag + small stats row */}
             <div className="mt-3 flex items-center gap-3">
-              <span className="inline-block bg-[#7750A3] text-white text-[11px] px-3 py-1 rounded-full">
-                {tag}
-              </span>
+              {tag && (
+                <span className="inline-block bg-[#7750A3] text-white text-[11px] px-3 py-1 rounded-full">
+                  {tag}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -160,15 +162,14 @@ export default function PostCard({
             type="button"
             onClick={handleLike}
             disabled={pending}
-            aria-pressed={liked}
-            aria-label={liked ? "Liked" : "Like"}
-            className="flex items-center gap-2 text-gray-600 px-2 py-1 disabled:opacity-60"
+            aria-pressed={isLikedDisplay}
+            aria-label={isLikedDisplay ? "Liked" : "Like"}
+            className="flex items-center text-gray-600 px-2 py-1 disabled:opacity-60"
           >
-            {/* Inline SVG heart so we can control fill & stroke directly */}
             <div className="relative h-5 w-5">
               <Image
-                src={liked ? '/favorite-fill.svg' : '/favorite.svg'}
-                alt={liked ? "Liked" : "Like"}
+                src={isLikedDisplay ? "/favorite-fill.svg" : "/favorite.svg"}
+                alt={isLikedDisplay ? "Liked" : "Like"}
                 fill
                 sizes="20px"
                 style={{ objectFit: "contain" }}
@@ -176,18 +177,17 @@ export default function PostCard({
               />
             </div>
 
-            <span className={`text-sm ${liked ? "text-[#00A79C]" : ""}`}>Like</span>
-            {/* {typeof likeCount === "number" && likeCount > 0 && (
-              <span className="ml-2 text-xs text-[#6B7280]">· {likeCount}</span>
-            )} */}
+            {/* <span className={`text-sm ${isLikedDisplay ? "text-[#00A79C]" : ""}`}>Like</span> */}
+            <span className="ml-2 text-[#6B7280]">{likeCountDisplay}</span>
           </button>
 
-          <button className="flex items-center gap-2 text-gray-600 px-2 py-1" onClick={handleReply} aria-label="reply" type="button">
+          <button className="flex items-center gap-2 text-gray-600 px-2 py-1" onClick={handleReply}>
             <Image src="/chat_bubble.svg" alt="Reply" width={20} height={20} />
-            <span>Reply</span>
+            {/* <span>Reply</span> */}
+            <span className="ml-2 text-[#6B7280]">{likeCountDisplay}</span>
           </button>
 
-          <button className="flex items-center gap-2 text-gray-600 px-2 py-1" onClick={handleShare} aria-label="share" type="button">
+          <button className="flex items-center gap-2 text-gray-600 px-2 py-1" onClick={() => { /* outer parent can handle share if wrapped in Link */ }}>
             <Image src="/share.svg" alt="Share" width={20} height={20} />
             <span>Share</span>
           </button>

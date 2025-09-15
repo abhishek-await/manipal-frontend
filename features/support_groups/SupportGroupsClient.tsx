@@ -85,6 +85,7 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
         const u = await authApi.getCurrentUser()
         if (mounted) setCurrentUser(u)
       } catch (e) {
+        console.error(e)
         if (mounted) setCurrentUser(null)
       }
     }
@@ -146,7 +147,7 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
           const isMember = Array.isArray(members) && members.some((m: any) => String(m.id) === String(currentUser?.id))
           setMembershipMap((m) => ({ ...m, [groupId]: isMember }))
         } catch (e) {
-          // keep optimistic state if validation fails
+          console.error(e)
         }
       }, 600)
     }
@@ -186,7 +187,7 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
           const isMember = Array.isArray(members) && members.some((m: any) => String(m.id) === String(currentUser?.id))
           setMembershipMap((m) => ({ ...m, [groupId]: isMember }))
         } catch (e) {
-          // ignore
+          console.error(e)
         }
       }, 600)
     }

@@ -13,7 +13,7 @@ export default function ChipCarouselEmbla({
   onChange?: (id: string) => void;
   className?: string;
 }) {
-  const [viewportRef, emblaApi] = useEmblaCarousel({
+  const [viewportRef] = useEmblaCarousel({
     dragFree: true,
     align: "start",
     containScroll: "trimSnaps",

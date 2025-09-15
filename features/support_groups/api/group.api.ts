@@ -130,6 +130,7 @@ export const groupApi = {
         if (!r.ok) throw new Error('Error fetching members')
         return r
       } catch (e) {
+        console.error(e)
         throw err // rethrow original
       }
     })

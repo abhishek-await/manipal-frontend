@@ -17,7 +17,7 @@ export async function POST() {
       "Content-Type": "application/json",
       cookie: cookieHeader,
     },
-    body: JSON.stringify({refresh: refreshToken}), // adjust if backend expects body
+    body: JSON.stringify({refresh: refreshToken}),
   });
 
   if (!backendRes.ok) {

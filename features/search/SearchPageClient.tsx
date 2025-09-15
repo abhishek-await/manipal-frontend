@@ -87,7 +87,6 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
 
   // Utility to read the server-provided flag (supports isMember or is_member)
   const getIsMemberFlag = (c: Card) => {
-    // @ts-ignore
     return Boolean((c as any).isMember ?? (c as any).is_member ?? false);
   };
 
@@ -233,3 +232,4 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
     </main>
   );
 }
+

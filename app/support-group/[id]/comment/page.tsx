@@ -1,6 +1,7 @@
 // app/support-group/[id]/comment/page.tsx
 import CommentClient from "@/features/support_groups/CommentClient";
 import React from "react";
+import { cookies } from "next/headers";
 
 type ReplyFromApi = {
   id: number;
@@ -16,18 +17,19 @@ type PostFromApi = {
   content?: string;
   full_name?: string;
   created_at?: string;
-  like_count?: number,
-  reply_count?: number,
-  is_liked_by_user?: boolean
+  like_count?: number;
+  reply_count?: number;
+  is_liked_by_user?: boolean;
+  avatar_url?: string;
 };
 
-async function safeFetchJson(url: string) {
+async function safeFetchJson(url: string, opts?: RequestInit) {
   try {
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(url, { cache: "no-store", ...opts });
     if (!res.ok) return null;
     return await res.json();
   } catch (e) {
-    console.error(e)
+    console.error(e);
     return null;
   }
 }
@@ -44,7 +46,7 @@ function flattenReplies(apiReplies: ReplyFromApi[] = []) {
     content: string;
     created_at: string;
     user_name: string;
-    parentId?: number | null;
+    parentId?: string | null;
     replyingTo?: string | null;
   }> = [];
 
@@ -65,7 +67,7 @@ function flattenReplies(apiReplies: ReplyFromApi[] = []) {
           content: nested.content,
           created_at: nested.created_at,
           user_name: nested.user_name,
-          parentId: r.id, // indicate it was replying to r.id
+          parentId: r.id.toString(), // indicate it was replying to r.id
           replyingTo: r.user_name ?? null,
         })
       );
@@ -76,15 +78,19 @@ function flattenReplies(apiReplies: ReplyFromApi[] = []) {
 }
 
 export default async function Page(props: PageProps<'/support-group/[id]/comment'>) {
-  const {id} = await props.params;
+  const { id } = await props.params;
   const postId = id;
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL;
+  if (!postId) return <div>Post id missing</div>;
 
-  // Try public read endpoints (no auth). Adjust endpoints if your API differs.
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? process.env.BACKEND_URL ?? "";
+  const cookieStore = await cookies();
+  const cookieHeader = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join("; ");
+
+  // 1) fetch the post (public endpoints fallback)
   const postPaths = [
     `${API_BASE}/support-groups/posts/${postId}/`,
     `${API_BASE}/support-group/posts/${postId}/`,
-    `${API_BASE}/support-groups/posts/${postId}`, // with/without trailing slash
+    `${API_BASE}/support-groups/posts/${postId}`
   ];
 
   let post: PostFromApi | null = null;
@@ -96,20 +102,39 @@ export default async function Page(props: PageProps<'/support-group/[id]/comment
     }
   }
 
-  // replies endpoint (docs show /support-groups/posts/{id}/replies/)
+  // 2) fetch replies (public)
   const repliesUrl = `${API_BASE}/support-groups/posts/${postId}/replies/`;
   const apiReplies: ReplyFromApi[] | null = (await safeFetchJson(repliesUrl)) ?? [];
-
   const flattened = flattenReplies(apiReplies ?? []);
 
-  console.log("Post: ", post)
-  console.log("Replies: ", flattened)
+  // 3) server-side fetch current user by forwarding cookies to backend
+  let initialCurrentUser: any | null = null;
+  try {
+    const meRes = await fetch(`${API_BASE}/accounts/user`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        cookie: cookieHeader,
+      },
+      cache: "no-store",
+    });
+
+    if (meRes.ok) {
+      initialCurrentUser = await meRes.json();
+    } else {
+      initialCurrentUser = null;
+    }
+  } catch (e) {
+    console.warn("Could not fetch current user server-side", e);
+    initialCurrentUser = null;
+  }
 
   // Pass server-side data into client component to avoid flicker.
   return (
     <CommentClient
       initialPost={post}
       initialReplies={flattened}
+      initialCurrentUser={initialCurrentUser}
       postId={String(postId)}
     />
   );

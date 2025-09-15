@@ -11,21 +11,25 @@ export default function CreatePostClient({
   groupId,
   groupTitle,
   groupAvatar,
+  initialCurrentUser = null,
 }: {
   groupId: string;
   groupTitle: string;
   groupAvatar: string;
+  initialCurrentUser?: any | null;
 }) {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<any | null>(null);
+  // hydrate from server if provided, otherwise null (client may fetch later)
+  const [currentUser, setCurrentUser] = useState<any | null>(initialCurrentUser ?? null);
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [tag, setTag] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // check auth client-side
+  // If server didn't supply user, optionally fetch on client (keeps previous behavior)
   useEffect(() => {
+    if (initialCurrentUser) return; // already hydrated
     let mounted = true;
     (async () => {
       try {
@@ -37,10 +41,8 @@ export default function CreatePostClient({
         setCurrentUser(null);
       }
     })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
+    return () => { mounted = false; };
+  }, [initialCurrentUser]);
 
   const handleBack = () => {
     router.back();
@@ -50,14 +52,12 @@ export default function CreatePostClient({
     e?.preventDefault();
 
     if (!currentUser) {
-      // redirect to login with next pointing back to group create post
+      // redirect to login with next pointing back to create-post
       router.push(`/login?next=${encodeURIComponent(`/support-groups/${groupId}/create-post`)}`);
       return;
     }
 
     if (!content.trim()) {
-      // minimal validation: content required
-      // you can replace with better UX (toast, inline error)
       alert("Please enter your thoughts");
       return;
     }
@@ -66,14 +66,14 @@ export default function CreatePostClient({
     try {
       const payload = { title: title.trim() || undefined, content: content.trim(), tag: tag.trim() || undefined, category: [0] };
 
-      // Attempt to use your API helper; if it ignores the payload the backend may still handle it,
-      // otherwise adjust groupApi.createPost to accept and forward a body.
-      // (If you prefer, swap this to call authApi.fetchWithAuth directly)
-      // @ts-ignore allow extra arg at runtime if API already expects (some code-bases accept it)
+      // NOTE: groupApi.createPost uses authApi.fetchWithAuth under the hood.
+      // If you rely on cookie-based sessions, ensure fetchWithAuth uses credentials: 'include'
+      // or calls your server-proxy route so cookies are forwarded.
       const created = await groupApi.createPost(groupId, payload);
 
-      // redirect to group page after creation
-      await router.push(`/group/${groupId}?newPostId=${encodeURIComponent(String(created.id || created.pk || created._id))}`);
+      // Redirect to group page with newPostId so client re-fetches posts if needed
+      const newId = created?.id ?? created?.pk ?? created?._id ?? "";
+      router.push(`/group/${groupId}?newPostId=${encodeURIComponent(String(newId))}`);
     } catch (err: any) {
       console.error("Create post failed", err);
       if (err?.message?.toLowerCase().includes("unauthorized")) {
@@ -81,7 +81,6 @@ export default function CreatePostClient({
         router.push(`/login?next=${encodeURIComponent(`/support-groups/${groupId}/create-post`)}`);
         return;
       }
-      // show fallback error
       alert("Failed to create post. Please try again.");
     } finally {
       setLoading(false);
@@ -92,22 +91,14 @@ export default function CreatePostClient({
     <div className="min-h-screen bg-white flex flex-col">
       {/* top header */}
       <header className="h-14 flex items-center px-3 border-b border-[#ECECEC]">
-        {/* Left: Back */}
-        <button
-          aria-label="Back"
-          onClick={handleBack}
-          className="h-9 w-9 flex items-center justify-center rounded-md"
-          type="button"
-        >
+        <button aria-label="Back" onClick={handleBack} className="h-9 w-9 flex items-center justify-center rounded-md" type="button">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
             <path d="M15 6L9 12l6 6" stroke="#0F141A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
 
-        {/* Center: Title */}
         <h1 className="flex-1 text-center font-semibold text-[16px] text-[#0F141A]">Create Post</h1>
 
-        {/* Right: Post button (small, rounded) */}
         <div className="w-[72px] flex items-center justify-end">
           <button
             onClick={handleSubmit}
@@ -124,26 +115,17 @@ export default function CreatePostClient({
         </div>
       </header>
 
-      {/* body */}
       <main className="flex-1 p-4">
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* author row */}
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full overflow-hidden bg-[#F3F4F6] flex-shrink-0">
-              <Image
-                src={groupAvatar || "/images/group-thumb.png"}
-                alt="group avatar"
-                width={40}
-                height={40}
-                className="object-cover"
-              />
+              <Image src={groupAvatar || "/images/group-thumb.png"} alt="group avatar" width={40} height={40} className="object-cover" />
             </div>
             <div>
               <div className="font-semibold text-[#034EA1]">{groupTitle}</div>
             </div>
           </div>
 
-          {/* title (optional) */}
           <div>
             <input
               value={title}
@@ -153,7 +135,6 @@ export default function CreatePostClient({
             />
           </div>
 
-          {/* large textarea */}
           <div>
             <textarea
               value={content}
@@ -163,16 +144,6 @@ export default function CreatePostClient({
               className="w-full border border-[#E5E7EB] rounded-lg px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#16AF9F] min-h-[160px]"
             />
           </div>
-
-          {/* tag input (optional)
-          <div>
-            <input
-              value={tag}
-              onChange={(e) => setTag(e.target.value)}
-              placeholder="Tag (e.g., Equipment, Diet) — optional"
-              className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#16AF9F]"
-            />
-          </div> */}
         </form>
       </main>
     </div>

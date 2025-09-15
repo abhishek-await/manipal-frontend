@@ -10,7 +10,6 @@ import { authApi } from "@/features/auth/api/auth.api";
 import { groupApi } from "@/features/support_groups/api/group.api";
 import { PostCardProps as Post } from "@/features/support_groups/components/PostCard";
 
-
 export default function GroupDetailClient({
   initialGroup,
   initialPosts,
@@ -28,9 +27,9 @@ export default function GroupDetailClient({
   const [group, setGroup] = useState<SupportGroupCardProps | null>(initialGroup);
   const [posts, setPosts] = useState<Post[]>(initialPosts ?? []);
   const [loading, setLoading] = useState(false);
-  const searchParams = useSearchParams()
+  const searchParams = useSearchParams();
 
-  // auth / membership
+  // auth / membership - initialize from server if available
   const [currentUser, setCurrentUser] = useState<any | null>(initialCurrentUser ?? null);
   const [isMember, setIsMember] = useState<boolean | null>(initialIsMember ?? null);
 
@@ -40,12 +39,50 @@ export default function GroupDetailClient({
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<"latest" | "oldest" | "trending">("latest");
 
+  // If server didn't provide currentUser, detect on client (only then)
   useEffect(() => {
-    // If the URL contains newPostId, refresh posts from server
+    if (initialCurrentUser) return; // server already hydrated user — skip client fetch
+
+    let mounted = true;
+    async function detectAuth() {
+      try {
+        const u = await authApi.getCurrentUser();
+        if (!mounted) return;
+        setCurrentUser(u ?? null);
+
+        if (u) {
+          try {
+            const members = await groupApi.listMembers(groupId);
+            if (!mounted) return;
+            const userId = u.id ?? u.pk ?? u.user_id;
+            const found = Array.isArray(members) && members.some((m: any) => {
+              const mid = m.id ?? m.user_id ?? (m.user && (m.user.id ?? m.user.pk));
+              return String(mid) === String(userId);
+            });
+            setIsMember(Boolean(found));
+          } catch {
+            setIsMember(false);
+          }
+        } else {
+          setIsMember(false);
+        }
+      } catch (err) {
+        console.warn("auth detection failed", err);
+        if (!mounted) return;
+        setCurrentUser(null);
+        setIsMember(false);
+      }
+    }
+
+    detectAuth();
+    return () => { mounted = false; };
+  }, [groupId, initialCurrentUser]);
+
+  // Listen to newPostId param: refresh posts if present (unchanged)
+  useEffect(() => {
     const newId = searchParams?.get("newPostId");
     if (!newId) return;
 
-    // fetch latest posts and remove the param from url
     let mounted = true;
     (async () => {
       try {
@@ -60,12 +97,10 @@ export default function GroupDetailClient({
           excerpt: p.content ?? "",
           tag: p.tag ?? "General",
           isLiked: p.is_liked_by_user,
-          likeCount: p.like_count
-          // we intentionally do not include per-post stats fields anymore,
-          // front-end will not render them (you requested removal).
+          likeCount: p.like_count ?? 0
         }));
         setPosts(fresh);
-        // remove query param to keep URL clean
+        // remove query param from URL (client-only)
         try {
           const url = new URL(window.location.href);
           url.searchParams.delete("newPostId");
@@ -306,6 +341,7 @@ export default function GroupDetailClient({
                 tag={p.tag}
                 isLiked={Boolean(p.isLiked)}
                 likeCount={p.likeCount ?? 0}
+                replyCount={p.replyCount ?? 0}
                 className="w-full"
               />
             </div>

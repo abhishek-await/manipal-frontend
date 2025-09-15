@@ -174,7 +174,7 @@ export const groupApi = {
     return res.json()
   },
 
-  createPost: async (groupId: string, data: { title?: string; content: string; category?: [] }) => {
+  createPost: async (groupId: string, data: { title?: string; content: string; category?: number[] }) => {
     const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/posts/${groupId}/post/`, {
       method: "POST",
       headers: { 'Content-Type': 'application/json'},

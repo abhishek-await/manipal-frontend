@@ -74,7 +74,7 @@ export default function SignUpForm(token: SignUpFormProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ access, refresh }),
       })
-      authApi.saveTokens(response.access, response.refresh);
+      // authApi.saveTokens(response.access, response.refresh);
       setShowSuccess(true);
     } catch (error) {
       console.error("Error SigningUp User: ", error);

@@ -130,7 +130,7 @@ export default function LoginForm() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ access, refresh }),
           })
-          authApi.saveTokens(response.tokens.access, response.tokens.refresh);
+          // authApi.saveTokens(response.tokens.access, response.tokens.refresh);
           router.push("/home");
         } else {
           router.push(`/signup?token=${encodeURIComponent(response.verification_id)}`);

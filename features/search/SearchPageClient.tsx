@@ -7,13 +7,14 @@ import SearchBar from "@/features/support_groups/components/SearchBar";
 import SupportGroupCard from "@/features/support_groups/components/Card";
 import { useRouter, useSearchParams } from "next/navigation";
 import { groupApi } from "@/features/support_groups/api/group.api";
-import { authApi } from "../auth/api/auth.api";
+import { authApi } from "@/features/auth/api/auth.api";
 
 type Props = {
   initialTrending: Card[];
+  initialCurrentUser?: any | null;
 };
 
-export default function SearchPageClient({ initialTrending = [] }: Props) {
+export default function SearchPageClient({ initialTrending = [], initialCurrentUser = null }: Props) {
   const [query, setQuery] = useState("");
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -25,7 +26,15 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
   const [trending, setTrending] = useState<Card[]>(initialTrending.slice(0, 4));
   const trendingMemo = useMemo(() => trending.slice(0, 4), [trending]);
 
-  // focus handling: if ?focus=1 present, focus the input on mount
+  // optional server-hydrated user or fetch on client
+  const [currentUser, setCurrentUser] = useState<any | null>(initialCurrentUser ?? null);
+
+  // membershipMap seeded from server flags (is_member / isMember)
+  const [membershipMap, setMembershipMap] = useState<Record<string, boolean>>({});
+
+  const pendingRef = useRef<Set<string>>(new Set());
+
+  // focus handling for ?focus=1
   useEffect(() => {
     const focusFlag = searchParams?.get("focus");
     if (focusFlag === "1") {
@@ -36,11 +45,28 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
           const url = new URL(window.location.href);
           url.searchParams.delete("focus");
           window.history.replaceState({}, "", url.toString());
-        } catch (err) {}
+        } catch {}
       }, 80);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // hydrate currentUser client-side if server didn't provide
+  useEffect(() => {
+    if (initialCurrentUser) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const u = await authApi.getCurrentUser().catch(() => null);
+        if (!mounted) return;
+        setCurrentUser(u ?? null);
+      } catch {
+        if (!mounted) return;
+        setCurrentUser(null);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [initialCurrentUser]);
 
   // debounced search
   useEffect(() => {
@@ -82,35 +108,51 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
   const isSearching = query.trim().length > 0;
   const noResults = !loading && isSearching && results.length === 0;
 
-  // prevent duplicate join/leave clicks
-  const pendingRef = useRef<Set<string>>(new Set());
-
-  // Utility to read the server-provided flag (supports isMember or is_member)
-  const getIsMemberFlag = (c: Card) => {
-    return Boolean((c as any).isMember ?? (c as any).is_member ?? false);
+  // Helper to read server flag (supports both fields)
+  const readServerMembershipFlag = (g: Card) => {
+    const anyG = g as any;
+    if (anyG.is_member !== undefined) return Boolean(anyG.is_member);
+    if (anyG.isMember !== undefined) return Boolean(anyG.isMember);
+    return undefined;
   };
 
-  // Helpers to update the is_member flag in arrays (optimistic update)
+  // Seed membershipMap from server flags whenever results or trending update
+  useEffect(() => {
+    const seed: Record<string, boolean> = {};
+    const src = isSearching ? results : trendingMemo;
+    src.forEach((g) => {
+      const flag = readServerMembershipFlag(g);
+      if (flag !== undefined) seed[String(g.id)] = flag;
+    });
+    if (Object.keys(seed).length > 0) {
+      setMembershipMap((m) => ({ ...m, ...seed }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results, trendingMemo, isSearching]);
+
+  // optimistic updates helper
   function setGroupIsMemberInArrays(groupId: string, isMember: boolean) {
     setResults((prev) => prev.map((g) => (String(g.id) === String(groupId) ? { ...(g as any), is_member: isMember, isMember } : g)));
     setTrending((prev) => prev.map((g) => (String(g.id) === String(groupId) ? { ...(g as any), is_member: isMember, isMember } : g)));
+    setMembershipMap((m) => ({ ...m, [groupId]: isMember }));
   }
 
-  // Join / Leave handlers (optimistic) — no listMembers checks
+  // Join / Leave (optimistic). Require auth redirect on missing user.
   const handleJoin = async (groupId: string) => {
+    if (!currentUser) {
+      router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`);
+      return;
+    }
     if (pendingRef.current.has(String(groupId))) return;
     pendingRef.current.add(String(groupId));
 
-    // optimistic UI
     setGroupIsMemberInArrays(groupId, true);
 
     try {
       await groupApi.joinGroup(groupId);
-      // success: keep optimistic state
     } catch (err: any) {
       // rollback
       setGroupIsMemberInArrays(groupId, false);
-
       if (err?.message?.toLowerCase().includes("unauthorized")) {
         authApi.clearTokens?.();
         router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`);
@@ -123,19 +165,20 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
   };
 
   const handleLeave = async (groupId: string) => {
+    if (!currentUser) {
+      router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`);
+      return;
+    }
     if (pendingRef.current.has(String(groupId))) return;
     pendingRef.current.add(String(groupId));
 
-    // optimistic UI
     setGroupIsMemberInArrays(groupId, false);
 
     try {
       await groupApi.leaveGroup(groupId);
-      // success: keep optimistic state
     } catch (err: any) {
       // rollback
       setGroupIsMemberInArrays(groupId, true);
-
       if (err?.message?.toLowerCase().includes("unauthorized")) {
         authApi.clearTokens?.();
         router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`);
@@ -147,8 +190,19 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
     }
   };
 
-  // displayed groups
-  const displayedGroups = useMemo(() => (isSearching ? results : trendingMemo), [isSearching, results, trendingMemo]);
+  // Determine isMember to send to card: membershipMap -> server flag -> false
+  const getIsMemberForRender = (g: Card) => {
+    const id = String(g.id);
+    if (membershipMap[id] !== undefined) return Boolean(membershipMap[id]);
+    const serverFlag = readServerMembershipFlag(g);
+    if (serverFlag !== undefined) return Boolean(serverFlag);
+    return false;
+  };
+
+  const displayedGroups = useMemo(() => {
+    if (isSearching) return results;
+    return trendingMemo;
+  }, [isSearching, results, trendingMemo]);
 
   return (
     <main className="min-h-screen w-full bg-white flex justify-center items-start">
@@ -180,7 +234,11 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
         </div>
 
         <h2 className="mt-6 text-[16px] leading-6 font-medium text-[#333333]">
-          {!isSearching ? "Top trending support groups" : loading ? "Searching…" : `Showing “${query.trim()}” support groups${typeof total === "number" ? ` (${total})` : ""}`}
+          {!isSearching
+            ? "Top trending support groups"
+            : loading
+            ? "Searching…"
+            : `Showing “${query.trim()}” support groups${typeof total === "number" ? ` (${total})` : ""}`}
         </h2>
 
         <div className="mt-4 space-y-4">
@@ -200,26 +258,34 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
           )}
 
           {noResults && (
-            <div className="w-full max-w-[342px] mx-auto bg-[#F7F7F7] rounded-[12px] p-6 flex flex-col items-center text-center">
-              <Image src="/no-results.svg" alt="no results icon" width={48} height={48} className="mb-2 opacity-60" />
-              <div className="text-[20px] font-medium text-[#333333]">No Group Found</div>
-            </div>
+            <>
+              <div className="w-full max-w-[342px] mx-auto bg-[#F7F7F7] rounded-[12px] p-6 flex flex-col items-center text-center">
+                <Image src="/no-results.svg" alt="no results icon" width={48} height={48} className="mb-2 opacity-60" />
+                <div className="text-[20px] font-medium text-[#333333]">No Group Found</div>
+                <div className="mt-2 text-sm text-[#6B7280]">Here are trending groups you might be interested in</div>
+              </div>
+
+              {/* trending fallback */}
+              <div className="mt-4 space-y-4">
+                {trendingMemo.map((c) => (
+                  <SupportGroupCard
+                    key={c.id}
+                    {...c}
+                    isMember={getIsMemberForRender(c)}
+                    onJoin={() => handleJoin(String(c.id))}
+                    onLeave={() => handleLeave(String(c.id))}
+                  />
+                ))}
+              </div>
+            </>
           )}
 
-          {!loading &&
-            (isSearching ? results.map((c) => (
+          {!loading && !noResults &&
+            (displayedGroups.map((c) => (
               <SupportGroupCard
                 key={c.id}
                 {...c}
-                isMember={Boolean((c as any).isMember ?? (c as any).is_member ?? false)}
-                onJoin={() => handleJoin(String(c.id))}
-                onLeave={() => handleLeave(String(c.id))}
-              />
-            )) : trendingMemo.map((c) => (
-              <SupportGroupCard
-                key={c.id}
-                {...c}
-                isMember={Boolean((c as any).isMember ?? (c as any).is_member ?? false)}
+                isMember={getIsMemberForRender(c)}
                 onJoin={() => handleJoin(String(c.id))}
                 onLeave={() => handleLeave(String(c.id))}
               />
@@ -232,4 +298,3 @@ export default function SearchPageClient({ initialTrending = [] }: Props) {
     </main>
   );
 }
-

@@ -105,19 +105,6 @@ export const authApi = {
     }
   },
 
-  clearTokens: async () => {
-    try {
-      // await fetch('/api/token', {
-      //   method: 'DELETE',
-      //   headers: { 'Content-Type': 'application/json' },
-      // })
-      localStorage.removeItem(ACCESS_KEY)
-      localStorage.removeItem(REFRESH_KEY)
-    } catch (e) {
-      console.warn('Could not clear tokens', e)
-    }
-  },
-
   getTokens: () : Tokens  => {
     try {
       // const res = await fetch('/api/token', {
@@ -173,43 +160,61 @@ export const authApi = {
     }
   },
 
-  fetchWithAuth: async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const { access } = authApi.getTokens()
+  clearTokens: async () => {
+    try {
+      await fetch("/api/token", { method: "DELETE" }); // clears next cookies
+    } catch (e) {}
+  },
 
-    // console.log("access, ", access)
+  // Wrapper: send a forward request to our server-side forwarder
+  fetchWithAuth: async (path: string, opts: RequestInit = {}) => {
+    const payload: any = {
+      path,
+      method: opts.method || "GET",
+      headers: {},
+    };
 
-    const baseInit: RequestInit = {
-      ...init,
-      headers: {
-        ...(init?.headers ?? {}),
-        'Content-Type': (init?.headers as any)?.['Content-Type'] ?? 'application/json',
-        ...(access ? { Authorization: `Bearer ${access}` } : {}),
-      },
+    // copy headers except Authorization (server will add it)
+    if (opts.headers) {
+      // shallow copy of headers object/map to plain object
+      const headersObj: Record<string, string> = {};
+      if (opts.headers instanceof Headers) {
+        opts.headers.forEach((v, k) => (headersObj[k] = v));
+      } else if (typeof opts.headers === "object") {
+        Object.assign(headersObj, opts.headers);
+      }
+      delete headersObj["Authorization"]; // server reads cookie
+      payload.headers = headersObj;
     }
 
-    // console.log("Input, ", input)
-    // console.log("Base, ", baseInit)
-
-    let response = await fetch(input, baseInit)
-
-    if (response.status === 401) {
-      const refreshed = await authApi.refreshAccessToken()
-      if (refreshed?.access) {
-        const retryInit = {
-          ...init,
-          headers: {
-            ...(init?.headers ?? {}),
-            'Content-Type': (init?.headers as any)?.['Content-Type'] ?? 'application/json',
-            Authorization: `Bearer ${refreshed.access}`,
-          },
-        }
-        response = await fetch(input, retryInit)
-      } else {
-        throw new Error('Unauthorized')
+    if (opts.body) {
+      // if body is string, try parse to object; otherwise keep object
+      try {
+        payload.body = typeof opts.body === "string" ? JSON.parse(opts.body) : opts.body;
+      } catch {
+        payload.body = opts.body;
       }
     }
 
-    return response
+    // call forwarder
+    let res = await fetch("/api/forward", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    // If forwarder returned 401, it already attempted refresh/retry internally.
+    // Caller can still get 401 and should treat as unauthenticated.
+    return res;
+  },
+
+  // helper to let server set httpOnly cookies after login
+  postTokensToServer: async (access: string, refresh: string) => {
+    await fetch("/api/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ access, refresh }),
+    });
   },
 
   getCurrentUser: async (): Promise<any | null> => {

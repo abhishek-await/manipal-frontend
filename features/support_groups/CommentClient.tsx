@@ -13,13 +13,14 @@ export type FlatReply = {
   content: string;
   created_at: string;
   user_name: string;
-  parentId?: number | null;
+  parentId?: string | null;
   replyingTo?: string | null;
 };
 
 export default function CommentClient({
   initialPost,
   initialReplies,
+  initialCurrentUser = null,
   postId,
 }: {
   initialPost: {
@@ -34,35 +35,47 @@ export default function CommentClient({
     reply_count?: number;
   } | null;
   initialReplies: FlatReply[];
+  initialCurrentUser?: any | null;
   postId: string;
 }) {
   const router = useRouter();
 
-  const [replies, setReplies] = useState<FlatReply[]>(initialReplies ?? []);
+  // normalize server-provided replies: ensure ids and parentIds are strings (or null)
+  const normalizedInitialReplies = (initialReplies ?? []).map((r: any) => ({
+    id: r.id != null ? String(r.id) : String(Math.random()).slice(2),
+    content: r.content,
+    created_at: r.created_at,
+    user_name: r.user_name ?? r.user?.name ?? "Unknown",
+    parentId: r.parentId != null ? String(r.parentId) : r.parent_id != null ? String(r.parent_id) : null,
+    replyingTo: r.replyingTo ?? null,
+  }));
+
+  const [replies, setReplies] = useState<FlatReply[]>(normalizedInitialReplies);
   const [loadingReplies, setLoadingReplies] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any | null>(null);
+
+  // seed currentUser from server-provided prop if available
+  const [currentUser, setCurrentUser] = useState<any | null>(initialCurrentUser ?? null);
 
   // Controlled like state for the PostCard
   const [isLiked, setIsLiked] = useState<boolean>(!!(initialPost?.is_liked_by_user ?? false));
   const [likeCount, setLikeCount] = useState<number>(initialPost?.like_count ?? 0);
+  const [replyCount, setReplyCount] = useState<number>(initialPost?.reply_count ?? 0);
   const [likePending, setLikePending] = useState(false);
 
   // reply input state
   const [text, setText] = useState("");
-  // immediateParentId = the actual comment id we will send to API as parent_id
-  const [replyToIdImmediate, setReplyToIdImmediate] = useState<string | null>(null);
-  // replyingToName is only for display (UI: "Replying to X")
-  const [replyingToName, setReplyingToName] = useState<string | null>(null);
-  // displayParentId = top-level parent id used for placing the optimistic reply in the flattened list
-  const [replyDisplayParentId, setReplyDisplayParentId] = useState<number | null>(null);
-
+  const [replyToIdImmediate, setReplyToIdImmediate] = useState<string | null>(null); // actual id sent to API (string)
+  const [replyingToName, setReplyingToName] = useState<string | null>(null); // display name
+  const [replyDisplayParentId, setReplyDisplayParentId] = useState<string | null>(null); // top-level parent used for grouping (string)
   const [posting, setPosting] = useState(false);
   const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({});
 
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
 
+  // only fetch current user client-side if server didn't hydrate it
   useEffect(() => {
+    if (initialCurrentUser) return;
     let mounted = true;
     (async () => {
       try {
@@ -77,9 +90,9 @@ export default function CommentClient({
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [initialCurrentUser]);
 
-  // flatten helper (same as before)
+  // flatten helper in case you need to re-flatten API replies on client (keeps normalization)
   function flattenRepliesClient(apiReplies: any[] = []): FlatReply[] {
     const out: FlatReply[] = [];
     (apiReplies || []).forEach((r: any) => {
@@ -98,7 +111,7 @@ export default function CommentClient({
             content: nested.content,
             created_at: nested.created_at,
             user_name: nested.user_name ?? nested.user?.name ?? "Unknown",
-            parentId: r.id,
+            parentId: String(r.id),
             replyingTo: r.user_name ?? r.user?.name ?? null,
           })
         );
@@ -107,7 +120,7 @@ export default function CommentClient({
     return out;
   }
 
-  // grouped view helper
+  // grouped view (top-level + map of children). comparisons use String(...)
   const grouped = useMemo(() => {
     const map: Record<string, FlatReply[]> = {};
     const top: FlatReply[] = [];
@@ -136,22 +149,26 @@ export default function CommentClient({
     return d.toLocaleDateString();
   }
 
-  // STARTREPLY: set immediate parent (API) and display parent (UI)
-  const startReply = (clickedId: string, toName?: string | null) => {
-    // clickedId = the id of the comment the user tapped "Reply" on (could be top-level or nested)
-    setReplyToIdImmediate(clickedId); // <-- API payload should use this
+  // when user clicks Reply on a comment (could be top-level or nested)
+  const startReply = (clickedIdRaw: string, toName?: string | null) => {
+    const clickedId = String(clickedIdRaw);
+    // clickedId must always be the exact comment id the user clicked on.
+    setReplyToIdImmediate(clickedId);
     setReplyingToName(toName ?? null);
 
-    // compute display parent: if clicked has parentId => the display parent is that parentId,
-    // otherwise clicked is itself a top-level parent and displayParent is clickedId
-    const clicked = replies.find((it) => it.id === clickedId);
-    let displayParent: number | null = null;
+    // Compute displayParentId separately: top-level parent id used to insert optimistic replies
+    const clicked = replies.find((it) => String(it.id) === clickedId);
+    let displayParent: string | null = null;
     if (clicked) {
-      displayParent = clicked.parentId != null ? Number(clicked.parentId) : Number(clicked.id);
+      displayParent = clicked.parentId != null ? String(clicked.parentId) : String(clicked.id);
     } else {
-      displayParent = clickedId ? Number(clickedId) : null;
+      displayParent = clickedId ?? null;
     }
     setReplyDisplayParentId(displayParent);
+
+    // debug
+    // eslint-disable-next-line no-console
+    console.log("[startReply] clickedImmediate:", clickedId, "displayParent:", displayParent);
 
     // focus the input
     setTimeout(() => inputRef.current?.focus(), 50);
@@ -163,7 +180,6 @@ export default function CommentClient({
     setReplyDisplayParentId(null);
   };
 
-  // Toggle replies open/close
   const toggleReplies = (parentId: string) => {
     setExpandedParents((s) => ({ ...s, [parentId]: !s[parentId] }));
   };
@@ -175,23 +191,25 @@ export default function CommentClient({
       return [optimistic, ...existing];
     }
 
-    const clicked = existing.find((it) => it.id === clickedReplyId);
+    // find clicked by normalized string
+    const clicked = existing.find((it) => String(it.id) === String(clickedReplyId));
     if (!clicked) return [optimistic, ...existing];
 
-    const displayParentId = clicked.parentId ?? Number(clicked.id);
+    // displayParentId is either the clicked.parentId or clicked.id (string)
+    const displayParentId = (clicked.parentId != null ? String(clicked.parentId) : String(clicked.id));
 
-    // find top-level parent index
+    // find top-level parent index: item with same id and parentId == null
     const parentIndex = existing.findIndex(
-      (it) => it.id === String(displayParentId) && (it.parentId === null || it.parentId === undefined)
+      (it) => String(it.id) === String(displayParentId) && (it.parentId == null)
     );
-    const fallbackIndex = existing.findIndex((it) => it.id === String(displayParentId));
+    const fallbackIndex = existing.findIndex((it) => String(it.id) === String(displayParentId));
     const pIndex = parentIndex !== -1 ? parentIndex : fallbackIndex;
     if (pIndex === -1) return [optimistic, ...existing];
 
-    // collect children indices that belong to this parent
+    // collect children indices that belong to this parent (compare strings; skip nulls)
     let i = pIndex + 1;
     const children: { idx: number; item: FlatReply }[] = [];
-    while (i < existing.length && existing[i].parentId === displayParentId) {
+    while (i < existing.length && existing[i].parentId != null && String(existing[i].parentId) === String(displayParentId)) {
       children.push({ idx: i, item: existing[i] });
       i++;
     }
@@ -202,7 +220,7 @@ export default function CommentClient({
       return copy;
     }
 
-    // newest-first order among children
+    // newest-first among children
     const optTs = new Date(optimistic.created_at).getTime();
     let insertIndex = pIndex + 1 + children.length; // append by default
     for (let j = 0; j < children.length; j++) {
@@ -218,10 +236,11 @@ export default function CommentClient({
     return copy;
   }
 
-  // SUBMITREPLY: use replyToIdImmediate in the API payload (the immediate parent), but keep replyDisplayParentId for UI
   const submitReply = async () => {
     const content = text.trim();
     if (!content) return;
+
+    // require auth
     if (!currentUser) {
       router.push(`/login?next=${encodeURIComponent(`/support-group/${postId}/comment`)}`);
       return;
@@ -230,7 +249,7 @@ export default function CommentClient({
     setPosting(true);
     const tempId = `temp-${Date.now()}`;
 
-    // optimistic for UI uses display parent (so it shows under the right top-level thread)
+    // Optimistic reply uses replyDisplayParentId (string) for UI grouping only
     const optimistic: FlatReply = {
       id: tempId,
       content,
@@ -240,19 +259,24 @@ export default function CommentClient({
       replyingTo: replyingToName ?? null,
     };
 
-    // insert in flattened list optimistically using the immediate clicked id to determine placement
+    // Insert optimistic item into flattened UI using the clicked id,
+    // so it appears under the correct coarse thread.
     setReplies((prev) => insertOptimisticReplyAtCorrectPosition(prev, optimistic, replyToIdImmediate));
 
-    // IMPORTANT: payload must carry the immediate parent id (the exact comment id being replied to),
-    // not replyDisplayParentId. That's what the backend expects.
-    const payload = { content, parent_id: replyToIdImmediate ? Number(replyToIdImmediate) : undefined };
+    // Build payload: IMPORTANT - use the immediate parent id (the exact comment id),
+    // not replyDisplayParentId
+    const payload: { content: string; parent_id?: number } = { content };
+    if (replyToIdImmediate) payload.parent_id = Number(replyToIdImmediate);
+
+    // debug log — inspect in browser console
+    // eslint-disable-next-line no-console
+    console.log("[submitReply] payload:", payload);
 
     try {
       const created = await groupApi.postReply(postId, payload);
-
       const createdId = String(created.id ?? created.pk ?? created._id ?? Date.now());
 
-      // Replace temp optimistic entry with server created object. Keep UI grouping consistent:
+      // Replace temp with server object; keep display grouping stable to avoid visual jump.
       setReplies((prev) =>
         prev.map((it) =>
           it.id === tempId
@@ -261,14 +285,26 @@ export default function CommentClient({
                 content: created.content ?? content,
                 created_at: created.created_at ?? new Date().toISOString(),
                 user_name: created.user_name ?? created.user?.name ?? optimistic.user_name,
-                // For display: if backend returns parent_id (the actual parent), map it to the display grouping.
-                // We prefer to keep the optimistic display parent (replyDisplayParentId) so position doesn't jump.
-                parentId: created.parent_id != null ? (replyDisplayParentId ?? Number(created.parent_id)) : replyDisplayParentId,
+                // For display we keep replyDisplayParentId (UI grouping); backend parent_id might be different
+                parentId: created.parent_id != null ? (replyDisplayParentId ?? String(created.parent_id)) : replyDisplayParentId,
                 replyingTo: optimistic.replyingTo ?? null,
               }
             : it
         )
       );
+
+      try {
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("mcc:reply-created", {
+              detail: { postId: String(postId), replyId: createdId },
+            })
+          );
+        }
+      } catch (e) {
+        // non-fatal; ignore
+        console.warn("reply-created dispatch failed", e);
+      }
 
       // cleanup UI state
       setText("");
@@ -276,7 +312,7 @@ export default function CommentClient({
       setReplyDisplayParentId(null);
       setReplyingToName(null);
 
-      // scroll to new item
+      // scroll to created reply in DOM
       setTimeout(() => {
         const node = listRef.current?.querySelector<HTMLElement>(`[data-reply-id="${createdId}"]`);
         if (node) node.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -298,8 +334,7 @@ export default function CommentClient({
 
   // like handler for the post (optimistic)
   const handleToggleLike = async () => {
-    const current = await authApi.getCurrentUser().catch(() => null);
-    if (!current) {
+    if (!currentUser) {
       router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
       return;
     }
@@ -347,6 +382,8 @@ export default function CommentClient({
     }
   };
 
+
+
   return (
     <div className="min-h-screen bg-white flex flex-col">
       {/* Header */}
@@ -358,7 +395,7 @@ export default function CommentClient({
       </div>
 
       {/* PostCard - controlled like */}
-      <div className="px-4 py-4 border-b">
+      <div className="border-b">
         <PostCard
           id={String(initialPost?.id ?? postId)}
           avatar={initialPost?.avatar_url ?? "/avatars/omar.png"}
@@ -368,13 +405,16 @@ export default function CommentClient({
           excerpt={initialPost?.content}
           isLiked={isLiked}
           likeCount={likeCount}
+          replyCount={replyCount}
           onToggleLike={handleToggleLike}
         />
       </div>
 
       {/* Comments header */}
       <div className="px-4 pt-4 pb-2">
-        <div className="text-xs text-gray-500">{(initialPost?.reply_count ?? replies.length) > 0 ? `${initialPost?.reply_count ?? replies.length} comment${(initialPost?.reply_count ?? replies.length) === 1 ? "" : "s"}` : "No comments"}</div>
+        <div className="text-xs text-gray-500">
+          {(initialPost?.reply_count ?? replies.length) > 0 ? `${initialPost?.reply_count ?? replies.length} comment${(initialPost?.reply_count ?? replies.length) === 1 ? "" : "s"}` : "No comments"}
+        </div>
         <div className="mt-1 text-[18px] font-bold">Most Recent</div>
       </div>
 
@@ -392,7 +432,7 @@ export default function CommentClient({
         <div className="space-y-4">
           {grouped.top.map((parent) => {
             const children = grouped.map[String(parent.id)] ?? [];
-            const showChildren = !!expandedParents[String(parent.id)]; // <-- ensured variable name casing
+            const showChildren = !!expandedParents[String(parent.id)];
             return (
               <div key={parent.id} className="bg-white border rounded-xl">
                 <div className="p-4">

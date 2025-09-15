@@ -9,6 +9,7 @@ import Image from "next/image";
 import { authApi } from "@/features/auth/api/auth.api";
 import { groupApi } from "@/features/support_groups/api/group.api";
 import { PostCardProps as Post } from "@/features/support_groups/components/PostCard";
+import { motion } from "framer-motion";
 
 export default function GroupDetailClient({
   initialGroup,
@@ -240,6 +241,52 @@ export default function GroupDetailClient({
     setPosts((prev) => prev.map(p => p.id === postId ? { ...p, isLiked, likeCount } : p));
   };
 
+  // show wide pill when near top or near bottom; otherwise collapse to FAB
+  // collapse only when scrolling down past threshold; expand on scroll up / near top / near bottom
+const [showWideCTA, setShowWideCTA] = useState(true);
+const lastScrollY = useRef(0);
+
+useEffect(() => {
+  let ticking = false;
+  const COLLAPSE_THRESHOLD = 120; // px before collapsing
+  const NEAR_BOTTOM_OFFSET = 200;
+
+  function update() {
+    const scrollY = window.scrollY || 0;
+    const directionDown = scrollY > lastScrollY.current;
+    const nearTop = scrollY < 40;
+    const nearBottom = (window.innerHeight + scrollY) >= (document.body.offsetHeight - NEAR_BOTTOM_OFFSET);
+
+    if (nearTop || nearBottom || !directionDown) {
+      setShowWideCTA(true);
+    } else {
+      if (scrollY > COLLAPSE_THRESHOLD) setShowWideCTA(false);
+      else setShowWideCTA(true);
+    }
+
+    lastScrollY.current = scrollY;
+    ticking = false;
+  }
+
+  // initial run
+  update();
+
+  function onScroll() {
+    if (!ticking) {
+      ticking = true;
+      requestAnimationFrame(update);
+    }
+  }
+
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll, { passive: true });
+
+  return () => {
+    window.removeEventListener("scroll", onScroll);
+    window.removeEventListener("resize", onScroll);
+  };
+}, []);
+
   return (
     <div className="min-h-screen bg-white flex justify-center py-4">
       <div className="w-full max-w-2xl relative">
@@ -358,24 +405,175 @@ export default function GroupDetailClient({
           )}
         </div>
 
-        {/* Create post CTA for members */}
-        {currentUser && (
-          <div className="fixed left-0 right-0 bottom-4 pointer-events-none z-40">
-            <div className="max-w-[390px] mx-auto px-4 pointer-events-auto">
-              <button
-                onClick={goToCreatePost}
-                className="mx-auto w-[219px] h-[54px] rounded-lg border border-[#00B7AC] bg-white flex items-center gap-3 px-3 text-[#18448A] font-medium shadow"
-                aria-label="Start a discussion"
-                type="button"
-              >
-                <div className="h-8 w-8 rounded-full bg-[#ECFDF6] flex items-center justify-center">
-                  <Image src="/post-icon.svg" alt="Post" width={18} height={18} />
-                </div>
-                <span>Start a discussion</span>
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Framer Motion CTA — replaces previous motion.button block */}
+{currentUser && (
+  <>
+    <motion.button
+      initial={false}
+      onClick={goToCreatePost}
+      aria-label="Start a discussion"
+      type="button"
+      // animate width, padding, etc.
+      animate={{
+        width: showWideCTA ? 340 : 44,
+        borderRadius: 58,
+        paddingLeft: showWideCTA ? 12 : 0,
+        paddingRight: showWideCTA ? 14 : 0,
+        justifyContent: showWideCTA ? "flex-start" : "center",
+        // optional small lift when collapsed:
+        y: showWideCTA ? 0 : -2,
+      }}
+      transition={{ type: "spring", stiffness: 260, damping: 28, mass: 0.7 }}
+      style={{
+        position: "fixed",
+        right: 20,
+        bottom: 16,
+        zIndex: 10050,
+        height: 44,
+        display: "flex",
+        alignItems: "center",
+        overflow: "hidden",
+        background: "linear-gradient(90deg,#034EA1 0%, #00B7AC 100%)",
+        boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
+        cursor: "pointer",
+        transformOrigin: "right center",
+        boxSizing: "border-box",
+      }}
+    >
+      {/* shimmer overlay — now adjusts opacity when wide vs collapsed so it's visible on the wide pill too */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          width: "180%", // wide band so it sweeps off-screen on both states
+          height: 44,
+          opacity: showWideCTA ? 0.12 : 0.09,
+          pointerEvents: "none",
+          background:
+            "linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.14) 40%, rgba(255,255,255,0) 70%)",
+          transform: "translateX(-120%) skewX(-12deg)", // start off-left + skew
+          animation: "sgShimmer 1.6s linear infinite",  // animate sweep
+        }}
+      />
+
+
+      {/* LEFT ICON: show a small plus icon inside a circular gradient — replaces the previous empty square */}
+      <motion.div
+        style={{
+          height: 28,
+          width: 28,
+          borderRadius: 9999,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 2,
+          flex: "none",
+          overflow: "hidden",
+          boxSizing: "border-box",
+          marginLeft:  showWideCTA ? 6 : 0,
+          background: "linear-gradient(90deg,#034EA1 0%, #00B7AC 100%)",
+        }}
+        animate={{
+          width: showWideCTA ? 28 : 0,
+          opacity: showWideCTA ? 1 : 0,
+          x: showWideCTA ? 0 : -2,
+        }}
+        transition={{ duration: 0.18 }}
+      >
+        {/* small plus icon exactly like the centered one but scaled down */}
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+          <path d="M12 5v14" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M5 12h14" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </motion.div>
+
+      {/* LABEL: animate maxWidth from 118 -> 0 and hide overflow so centered plus isn't shifted */}
+      <motion.span
+        style={{
+          zIndex: 2,
+          color: "#FFFFFF",
+          fontFamily: "'Helvetica Neue', Arial, sans-serif",
+          fontWeight: 500,
+          fontSize: 14,
+          lineHeight: "28px",
+          textAlign: "center",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          display: "inline-block",
+          boxSizing: "border-box",
+          marginLeft: 10,
+        }}
+        animate={{
+          maxWidth: showWideCTA ? 118 : 0, // matches spec label area
+          opacity: showWideCTA ? 1 : 0,
+          x: showWideCTA ? 0 : -6,
+        }}
+        transition={{ duration: 0.22 }}
+      >
+        Start a Discussion
+      </motion.span>
+
+      {/* CENTERED PLUS: absolutely centered wrapper — unchanged logic but still animates nicely */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          transform: "translate(-50%,-50%)",
+          zIndex: 3,
+          pointerEvents: "none",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 24,
+          height: 24,
+        }}
+      >
+        <motion.svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-hidden
+          style={{
+            display: "block",
+          }}
+          animate={{
+            opacity: showWideCTA ? 0 : 1,
+            scale: showWideCTA ? 0.6 : 1,
+          }}
+          transition={{ duration: 0.22, ease: "easeOut" }}
+        >
+          <path d="M12 5v14" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M5 12h14" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </motion.svg>
+      </div>
+    </motion.button>
+
+    {/* shimmer keyframes (if you plan to animate the band) */}
+   <style jsx>{`
+  @keyframes sgShimmer {
+    0% {
+      transform: translateX(-120%) skewX(-12deg);
+      opacity: 0.08;
+    }
+    50% {
+      transform: translateX(20%) skewX(-12deg);
+      opacity: 0.14;
+    }
+    100% {
+      transform: translateX(140%) skewX(-12deg);
+      opacity: 0.08;
+    }
+  }
+`}</style>
+  </>
+)}
+
 
         {/* About section for logged-in users (unchanged) */}
         {currentUser && (

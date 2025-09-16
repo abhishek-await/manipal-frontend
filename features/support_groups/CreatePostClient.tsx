@@ -1,4 +1,3 @@
-// features/support_groups/CreatePostClient.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -71,9 +70,21 @@ export default function CreatePostClient({
       // or calls your server-proxy route so cookies are forwarded.
       const created = await groupApi.createPost(groupId, payload);
 
-      // Redirect to group page with newPostId so client re-fetches posts if needed
+      // Redirect to group page with newPostId + success + image if available
       const newId = created?.id ?? created?.pk ?? created?._id ?? "";
-      router.push(`/group/${groupId}?newPostId=${encodeURIComponent(String(newId))}`);
+      // try common places for an image in the response
+      const imageUrl =
+        created?.image_url ??
+        created?.image ??
+        (created?.attachments && created.attachments[0] && (created.attachments[0].url || created.attachments[0].file_url)) ??
+        "";
+
+      const q = new URLSearchParams();
+      if (newId) q.set("newPostId", String(newId));
+      q.set("success", "1");
+      if (imageUrl) q.set("successImage", imageUrl);
+
+      router.push(`/group/${groupId}?${q.toString()}`);
     } catch (err: any) {
       console.error("Create post failed", err);
       if (err?.message?.toLowerCase().includes("unauthorized")) {

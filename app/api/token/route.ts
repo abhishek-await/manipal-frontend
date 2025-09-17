@@ -8,12 +8,15 @@ export async function POST(req: Request) {
   const { access, refresh } = await req.json();
   if (!access || !refresh) return NextResponse.json({ message: "missing tokens" }, { status: 400 });
 
-  const c = await cookies();
+  console.log(`[Token API] access: ${access}, refresh: ${refresh}`)
+
+  try {
+    const c = await cookies();
   c.set({
     name: "accessToken",
     value: access,
     httpOnly: true,
-    sameSite: "lax", // change to 'none' + secure if cross-site
+    sameSite: "lax",
     path: "/",
     maxAge: 60 * 15,
     secure: isProd,
@@ -29,6 +32,12 @@ export async function POST(req: Request) {
   });
 
   return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json({
+      message: "Couldn't save tokens in cookies",
+      error: error
+    },{status: 500})
+  }
 }
 
 export async function DELETE() {

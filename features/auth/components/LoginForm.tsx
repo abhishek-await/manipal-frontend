@@ -122,7 +122,7 @@ export default function LoginForm() {
         setStep("mobile");
       } else {
         if (response.profile_complete) {
-          authApi.clearTokens();
+          await authApi.clearTokens();
           const access = response.tokens.access
           const refresh = response.tokens.refresh
           await fetch('/api/token', {

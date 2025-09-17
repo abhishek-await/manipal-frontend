@@ -66,7 +66,7 @@ export default function SignUpForm(token: SignUpFormProps) {
   const onSubmit = async (data: SignupFormData) => {
     try {
       const response = await authApi.signup(data, token);
-      authApi.clearTokens();
+      await authApi.clearTokens();
       const access = response.access
       const refresh = response.refresh
       await fetch('/api/token', {

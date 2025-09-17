@@ -1,6 +1,6 @@
 "use client";
 
-import React, { startTransition, useId } from "react";
+import React, { startTransition, useId, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 
@@ -43,6 +43,7 @@ export default function SearchBar({
   const router = useRouter();
   const id = useId();
   const inputId = `search-${id}`;
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const navigateToSearch = () => {
     const params = new URLSearchParams();
@@ -54,10 +55,9 @@ export default function SearchBar({
     const qs = params.toString();
     const path = `/search${qs ? `?${qs}` : ""}`;
 
-    // prefetchtarget optionally (helps in production)
+    // prefetch optionally
     router.prefetch?.("/search");
 
-    // push as low-priority so UI remains responsive
     startTransition(() => {
       router.push(path);
     });
@@ -73,14 +73,20 @@ export default function SearchBar({
     if (navigateOnInteract) navigateToSearch();
   };
 
-  // prefetch on hover / pointer enter / touchstart to speed up navigation
   const prefetchSearch = () => {
     router.prefetch?.("/search");
   };
 
-  // If navigateOnInteract is true, we want readOnly so users cannot type on the home page.
-  // If false, input must be editable so no readOnly and no navigation handlers.
   const readOnly = navigateOnInteract;
+
+  const handleClear = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    onChange("");
+    // focus input after clearing (if editable)
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  };
 
   return (
     <form
@@ -93,8 +99,10 @@ export default function SearchBar({
       onPointerEnter={prefetchSearch}
       onTouchStart={prefetchSearch}
     >
+      {/* border/background layer */}
       <div className="absolute inset-0 rounded-[8px] border border-[#16AF9F] pointer-events-none" />
 
+      {/* magnifier */}
       <Image
         src="./MagnifyingGlass.svg"
         alt="Search bar MagnifyingGlass"
@@ -104,6 +112,7 @@ export default function SearchBar({
       />
 
       <input
+        ref={inputRef}
         id={inputId}
         name={name}
         autoFocus={autoFocus}
@@ -113,10 +122,25 @@ export default function SearchBar({
         onClick={navigateOnInteract ? handleClick : onClick}
         onFocus={navigateOnInteract ? handleFocus : onFocus}
         readOnly={readOnly}
-        className="h-full w-full bg-transparent outline-none pl-11 pr-3 text-[14px] leading-[17px] font-medium placeholder:text-[#54555A] font-['Helvetica_Neue']"
+        className="h-full w-full bg-transparent outline-none pl-11 pr-10 text-[14px] leading-[17px] font-medium placeholder:text-[#54555A] font-['Helvetica_Neue']"
         placeholder={placeholder}
         aria-label={placeholder}
       />
+
+      {/* Clear button - only when editable & has content */}
+      {!readOnly && value && value.length > 0 && (
+        <button
+          type="button"
+          aria-label="Clear search"
+          onClick={handleClear}
+          className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-full hover:bg-gray-100"
+        >
+          <svg className="h-3 w-3 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      )}
     </form>
   );
 }

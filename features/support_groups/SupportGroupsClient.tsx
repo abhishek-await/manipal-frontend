@@ -1,317 +1,403 @@
-// features/support_groups/SupportGroupsClient.tsx
-"use client"
+"use client";
 
-import React, { useEffect, useMemo, useState } from 'react'
-import SupportGroupCard from '@/features/support_groups/components/Card'
-import SearchBar from '@/features/support_groups/components/SearchBar'
-import Image from 'next/image'
-import ChipCarouselEmbla, { ChipItem } from '@/features/support_groups/components/ChipCarousel'
-import { SupportGroupCardProps as Card } from '@/features/support_groups/components/Card'
-import { useRouter } from 'next/navigation'
-import { groupApi } from './api/group.api'
-import { authApi } from '../auth/api/auth.api'
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import SupportGroupCard from "@/features/support_groups/components/Card";
+import SearchBar from "@/features/support_groups/components/SearchBar";
+import Image from "next/image";
+import ChipCarouselEmbla, { ChipItem } from "@/features/support_groups/components/ChipCarousel";
+import { SupportGroupCardProps as Card } from "@/features/support_groups/components/Card";
+import { useRouter } from "next/navigation";
+import { groupApi } from "./api/group.api";
+import { authApi } from "../auth/api/auth.api";
 import { startTransition } from "react";
 import Link from "next/link";
 
-const PAGE_SIZE = 4
+import { LayoutGroup, motion, AnimatePresence } from "framer-motion";
+import SearchPageClient from "@/features/search/SearchPageClient";
+
+const PAGE_SIZE = 4;
 
 type Stats = {
-  totalGroups: number
-  totalPatients: number
-  totalExperts: number
-  totalDiscussions: number
-}
+  totalGroups: number;
+  totalPatients: number;
+  totalExperts: number;
+  totalDiscussions: number;
+};
 
 type Props = {
-  initialGroups: Card[]
-  initialChipItems: ChipItem[]
-  initialStats: Stats
-}
+  initialGroups: Card[];
+  initialChipItems: ChipItem[];
+  initialStats: Stats;
+};
 
 export default function SupportGroupsClient({ initialGroups, initialChipItems, initialStats }: Props) {
-  const [q, setQ] = useState('')
-  const router = useRouter()
-  const goToSearch = () => {
-    const params = new URLSearchParams();
-    const qTrim = q?.trim();
-    if (qTrim) params.set("q", qTrim);
-    params.set("focus", "1"); // request focus on search page
+  const router = useRouter();
 
-    const qs = params.toString();
-    const path = `/search${qs ? `?${qs}` : ""}`;
+  // --- search / morph state ---
+  const [isSearchOpen, setIsSearchOpen] = useState(false); // when true, we render search-page content (single page)
+  const [q, setQ] = useState("");
 
-    // prefetch to help the navigation be faster (esp. on production)
-    router.prefetch?.("/search");
+  // prepare a small trending list to feed the search UI when shown
+  const initialTrending = useMemo(() => {
+    if (!Array.isArray(initialGroups)) return [];
+    return (initialGroups.slice().sort((a, b) => {
+      const ga = Number((a as any).growthPercentage ?? 0);
+      const gb = Number((b as any).growthPercentage ?? 0);
+      return gb - ga;
+    })).slice(0, 4) as Card[];
+  }, [initialGroups]);
 
-    // low-priority navigation so UI remains snappy
-    startTransition(() => {
-      router.push(path);
-    });
+  const openSearch = () => setIsSearchOpen(true);
+  const closeSearch = () => {
+    setQ("");              // clear immediately
+    // a tiny delay or rAF helps ensure input sees the value before morph starts
+    requestAnimationFrame(() => setIsSearchOpen(false));
   };
-  // use the server-rendered initial data (no client refetch by default)
-  const [groups, setGroups] = useState<Card[]>(initialGroups ?? [])
-  const [chipItems, setChipItems] = useState<ChipItem[]>(initialChipItems ?? [])
-  const [stats, setStats] = useState<Stats | undefined>(initialStats)
 
-  const [selectedChip, setSelectedChip] = useState<ChipItem | undefined>()
+  // --- keep your previous app state and handlers (unchanged) ---
+  const [groups, setGroups] = useState<Card[]>(initialGroups ?? []);
+  const [chipItems, setChipItems] = useState<ChipItem[]>(initialChipItems ?? []);
+  const [stats, setStats] = useState<Stats | undefined>(initialStats);
+
+  const [selectedChip, setSelectedChip] = useState<ChipItem | undefined>();
   const visibleGroups = useMemo(() => {
-    if (!selectedChip) return groups
+    if (!selectedChip) return groups;
     return groups.filter((g: any) => {
-      const catIdOrName = g?.category?.id ?? g?.category?.name ?? ''
-      return String(catIdOrName) === selectedChip.id
-    })
-  }, [groups, selectedChip])
+      const catIdOrName = g?.category?.id ?? g?.category?.name ?? "";
+      return String(catIdOrName) === selectedChip.id;
+    });
+  }, [groups, selectedChip]);
 
-  const [visibleCount, setVisibleCount] = useState<number>(PAGE_SIZE)
+  const [visibleCount, setVisibleCount] = useState<number>(PAGE_SIZE);
   useEffect(() => {
-    setVisibleCount(PAGE_SIZE)
-  }, [selectedChip, groups])
+    setVisibleCount(PAGE_SIZE);
+  }, [selectedChip, groups]);
 
-  const displayedGroups = useMemo(() => visibleGroups.slice(0, visibleCount), [visibleGroups, visibleCount])
-  const handleLoadMore = () => setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, visibleGroups.length))
-  const allLoaded = visibleCount >= visibleGroups.length
+  const displayedGroups = useMemo(() => visibleGroups.slice(0, visibleCount), [visibleGroups, visibleCount]);
+  const handleLoadMore = () => setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, visibleGroups.length));
+  const allLoaded = visibleCount >= visibleGroups.length;
 
-  const [currentUser, setCurrentUser] = useState<any | null>(null)
-  // map of groupId -> boolean (truthy = member)
-  const [membershipMap, setMembershipMap] = useState<Record<string, boolean>>({})
+  const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [membershipMap, setMembershipMap] = useState<Record<string, boolean>>({});
+  const pendingRef = React.useRef(new Set<string>());
 
-  const pendingRef = React.useRef(new Set<string>())
-
-  // load current user once
   useEffect(() => {
-    let mounted = true
+    let mounted = true;
     async function fetchUser() {
       try {
-        const u = await authApi.getCurrentUser()
-        if (mounted) setCurrentUser(u)
+        const u = await authApi.getCurrentUser();
+        if (mounted) setCurrentUser(u);
       } catch (e) {
-        console.error(e)
-        if (mounted) setCurrentUser(null)
+        console.error(e);
+        if (mounted) setCurrentUser(null);
       }
     }
-    fetchUser()
-    return () => { mounted = false }
-  }, [])
+    fetchUser();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
-  // Initialize membershipMap entries for displayed groups so card reads have a value immediately.
-  // This just seeds missing entries with server-provided c.isMember (if present) or false.
   useEffect(() => {
-    if (!displayedGroups || displayedGroups.length === 0) return
+    if (!displayedGroups || displayedGroups.length === 0) return;
     setMembershipMap((prev) => {
-      const copy = { ...prev }
+      const copy = { ...prev };
       displayedGroups.forEach((g) => {
         if (copy[g.id] === undefined) {
-          // if the server-supplied card object included isMember, use it; otherwise default false
-          copy[g.id] = Boolean((g as any).isMember) ?? false
+          copy[g.id] = Boolean((g as any).isMember) ?? false;
         }
-      })
-      return copy
-    })
-  }, [displayedGroups])
+      });
+      return copy;
+    });
+  }, [displayedGroups]);
 
-  // ----- join / leave handlers -----
+  // join / leave (kept identical)
   const handleJoin = async (groupId: string) => {
     if (!currentUser) {
-      router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`)
-      return
+      router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`);
+      return;
     }
-
-    // mark pending to stop background checks from clobbering optimistic update
-    pendingRef.current.add(String(groupId))
-
-    // optimistic UI: set membershipMap and bump member count in groups state
-    setMembershipMap((m) => ({ ...m, [groupId]: true }))
-    setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, members: (g.members ?? 0) + 1 } : g))
-
+    pendingRef.current.add(String(groupId));
+    setMembershipMap((m) => ({ ...m, [groupId]: true }));
+    setGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, members: (g.members ?? 0) + 1 } : g)));
     try {
-      await groupApi.joinGroup(groupId)
-      // success: keep optimistic state
+      await groupApi.joinGroup(groupId);
     } catch (err: any) {
-      // rollback on error
-      setMembershipMap((m) => ({ ...m, [groupId]: false }))
-      setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, members: Math.max((g.members ?? 1) - 1, 0) } : g))
-
-      if (err?.message?.toLowerCase().includes('unauthorized')) {
-        authApi.clearTokens?.()
-        router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`)
-        return
+      setMembershipMap((m) => ({ ...m, [groupId]: false }));
+      setGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, members: Math.max((g.members ?? 1) - 1, 0) } : g)));
+      if (err?.message?.toLowerCase().includes("unauthorized")) {
+        authApi.clearTokens?.();
+        router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`);
+        return;
       }
-      console.error('Join failed', err)
+      console.error("Join failed", err);
     } finally {
-      // remove pending then revalidate membership (after slight delay)
-      pendingRef.current.delete(String(groupId))
-
+      pendingRef.current.delete(String(groupId));
       setTimeout(async () => {
         try {
-          const members = await groupApi.listMembers(groupId)
-          const isMember = Array.isArray(members) && members.some((m: any) => String(m.id) === String(currentUser?.id))
-          setMembershipMap((m) => ({ ...m, [groupId]: isMember }))
+          const members = await groupApi.listMembers(groupId);
+          const isMember = Array.isArray(members) && members.some((m: any) => String(m.id) === String(currentUser?.id));
+          setMembershipMap((m) => ({ ...m, [groupId]: isMember }));
         } catch (e) {
-          console.error(e)
+          console.error(e);
         }
-      }, 600)
+      }, 600);
     }
-  }
+  };
 
   const handleLeave = async (groupId: string) => {
     if (!currentUser) {
-      router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`)
-      return
+      router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`);
+      return;
     }
-
-    pendingRef.current.add(String(groupId))
-
-    // optimistic UI
-    setMembershipMap((m) => ({ ...m, [groupId]: false }))
-    setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, members: Math.max((g.members ?? 1) - 1, 0) } : g))
-
+    pendingRef.current.add(String(groupId));
+    setMembershipMap((m) => ({ ...m, [groupId]: false }));
+    setGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, members: Math.max((g.members ?? 1) - 1, 0) } : g)));
     try {
-      await groupApi.leaveGroup(groupId)
+      await groupApi.leaveGroup(groupId);
     } catch (err: any) {
-      // rollback
-      setMembershipMap((m) => ({ ...m, [groupId]: true }))
-      setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, members: (g.members ?? 0) + 1 } : g))
-
-      if (err?.message?.toLowerCase().includes('unauthorized')) {
-        authApi.clearTokens?.()
-        router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`)
-        return
+      setMembershipMap((m) => ({ ...m, [groupId]: true }));
+      setGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, members: (g.members ?? 0) + 1 } : g)));
+      if (err?.message?.toLowerCase().includes("unauthorized")) {
+        authApi.clearTokens?.();
+        router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`);
+        return;
       }
-      console.error('Leave failed', err)
+      console.error("Leave failed", err);
     } finally {
-      pendingRef.current.delete(String(groupId))
-
+      pendingRef.current.delete(String(groupId));
       setTimeout(async () => {
         try {
-          const members = await groupApi.listMembers(groupId)
-          const isMember = Array.isArray(members) && members.some((m: any) => String(m.id) === String(currentUser?.id))
-          setMembershipMap((m) => ({ ...m, [groupId]: isMember }))
+          const members = await groupApi.listMembers(groupId);
+          const isMember = Array.isArray(members) && members.some((m: any) => String(m.id) === String(currentUser?.id));
+          setMembershipMap((m) => ({ ...m, [groupId]: isMember }));
         } catch (e) {
-          console.error(e)
+          console.error(e);
         }
-      }, 600)
+      }, 600);
     }
-  }
+  };
 
-  // UI
+  // ---- layout/morph rendering ----
+  // Important: BOTH the home and the search view expose a motion.div with the SAME layoutId
+  // and the SAME measured box (we set className="w-full h-12" on both wrappers).
+  // The parent contains a single LayoutGroup that covers both states.
+
   return (
     <div className="min-h-screen w-full bg-white flex flex-col">
       <main className="w-full flex justify-center">
         <div className="w-full max-w-[420px] mx-auto px-4 sm:px-6">
-          <section className="pt-8">
-            <h1 className="text-[28px] leading-8 font-bold text-[#18448A] text-center">
-              Find Patient
-              <br />
-              Support Groups
-            </h1>
-            <p className="mt-4 text-[14px] leading-5 text-center text-[#54555A]">
-              Connect with others who understand your journey. Search for support groups by condition, location, or keywords.
-            </p>
+          <LayoutGroup>
+            {/* Header/title area - when isSearchOpen === false we show home header, else show search header */}
+            <div className="pt-2">
+              <AnimatePresence mode="wait">
+                {!isSearchOpen ? (
+                  // HOME header + searchbar (motion wrapper)
+                  <motion.div
+                    key="home-header"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.18 }}
+                  >
+                    <h1 className="text-[28px] leading-8 font-bold text-[#18448A] text-center">
+                      Find Patient
+                      <br />
+                      Support Groups
+                    </h1>
+                    <p className="mt-4 text-[14px] leading-5 text-center text-[#54555A]">
+                      Connect with others who understand your journey. Search for support groups by condition, location, or keywords.
+                    </p>
 
-            <div className="mt-6 grid grid-cols-2 gap-y-6 gap-x-4 sm:grid-cols-4">
-              <StatTile number={stats?.totalGroups?.toLocaleString() ?? '...'} label="Groups" iconSrc="/groups.svg" alt="Groups" />
-              <StatTile number={stats?.totalPatients?.toLocaleString() ?? '...'} label="Patients & Caregivers" iconSrc="/users.svg" alt="Patients & Caregivers" />
-              <StatTile number={stats?.totalExperts?.toLocaleString() ?? '...'} label="Health Experts" iconSrc="/experts.svg" alt="Health Experts" />
-              <StatTile number={stats?.totalDiscussions?.toLocaleString() ?? '...'} label="Discussions" iconSrc="/discussions.svg" alt="Discussions" />
+                    <div className="mt-6 grid grid-cols-2 gap-y-6 gap-x-4 sm:grid-cols-4">
+                      <StatTile number={stats?.totalGroups?.toLocaleString() ?? '...'} label="Groups" iconSrc="/groups.svg" alt="Groups" />
+                      <StatTile number={stats?.totalPatients?.toLocaleString() ?? '...'} label="Patients & Caregivers" iconSrc="/users.svg" alt="Patients & Caregivers" />
+                      <StatTile number={stats?.totalExperts?.toLocaleString() ?? '...'} label="Health Experts" iconSrc="/experts.svg" alt="Health Experts" />
+                      <StatTile number={stats?.totalDiscussions?.toLocaleString() ?? '...'} label="Discussions" iconSrc="/discussions.svg" alt="Discussions" />
+                    </div>
+
+                    <div className="mt-12">
+                      {/* shared-layout wrapper: keep same measured box on both sides */}
+                      <motion.div layoutId="search-bar" className="w-full h-12 relative">
+                        <SearchBar
+                          value={q}
+                          onChange={setQ}
+                          onSubmit={() => {}}
+                          onClick={openSearch} // open single-page search
+                          className="w-full h-full"
+                          navigateOnInteract={false} // do not route away
+                        />
+                      </motion.div>
+                    </div>
+                  </motion.div>
+                ) : (
+                  // SEARCH header + searchbar (this is the target of the morph)
+                  <motion.div
+                    key="search-header"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.18 }}
+                  >
+                    {/* compact back row */}
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        aria-label="Back"
+                        className="h-6 w-6 flex-shrink-0"
+                        onClick={closeSearch}
+                      >
+                        <img src="/arrow-left.svg" alt="Back" className="h-6 w-6 object-contain" />
+                      </button>
+                      <div className="flex-1">
+                        {/* same layoutId wrapper with identical class - keeps measured box identical */}
+                        <motion.div layoutId="search-bar" className="w-full h-12 relative">
+                          <SearchBar
+                            value={q}
+                            onChange={setQ}
+                            placeholder="Find a support group"
+                            navigateOnInteract={false}
+                            autoFocus={true}
+                            className="w-full h-full"
+                            onClick={() => {}}
+                          />
+                        </motion.div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
+          </LayoutGroup>
 
-            <div className="mt-12">
-              <SearchBar value={q} onChange={setQ} onSubmit={() => {}} onClick={goToSearch} className="w-full" navigateOnInteract={true} />
-            </div>
-
-            <div className="mt-6">
-              <p className="text-sm text-[#54555A]">Find by condition</p>
-              <ChipCarouselEmbla
-                className="mt-3"
-                items={chipItems}
-                selectedId={selectedChip?.id}
-                onChange={(id) => {
-                  if (id === selectedChip?.id) {
-                    setSelectedChip(undefined)
-                  } else {
-                    const chip = chipItems.find((c) => c.id === id)
-                    setSelectedChip(chip)
-                  }
-                }}
-              />
-            </div>
-          </section>
-
-          <section className="mt-8 w-full">
-            <h2 className="text-[20px] font-bold text-[#18448A] text-center md:text-left">
-              {selectedChip ? selectedChip.label : 'All'} Support Group(s)
-            </h2>
-            <p className="mt-1 text-[14px] text-[#54555A] text-center md:text-left">
-              Showing {Math.min(displayedGroups.length, visibleGroups.length)} of {visibleGroups.length} groups
-            </p>
-
-            <div className="mt-4 flex flex-col items-center gap-4">
-              {displayedGroups.length === 0 && (
-                <div className="text-sm text-[#54555A]">No groups found.</div>
-              )}
-
-              {displayedGroups.map((c) => {
-                const href = `/group/${c.id}`
-
-                return (
-                  <div key={c.id} className="w-full max-w-[360px] mx-auto">
-                    {/* Wrap card in Link so Next can prefetch */}
-                    <Link href={href} prefetch={true} className="block w-full" onPointerEnter={() => { router.prefetch?.(href) }}>
-                      {/* Pass membershipMap value down to the card so it reflects optimistic changes immediately */}
-                      <SupportGroupCard
-                        {...c}
-                        href={href}
-                        className="w-full"
-                        // <-- IMPORTANT: source membership from membershipMap (fallback to c.isMember)
-                        isMember={Boolean(membershipMap[c.id] ?? (c as any).isMember)}
-                        onJoin={() => handleJoin(c.id)}
-                        onLeave={() => handleLeave(c.id)}
+          {/* MAIN PAGE BODY: we swap the main body content between "home content" and "search content"
+              but the search bar morph happens above because both expose the same layoutId wrapper. */}
+          <div className="">
+            <AnimatePresence mode="wait" onExitComplete={() => setQ("")}>
+              {!isSearchOpen ? (
+                <motion.div
+                  key="home-body"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.16 }}
+                >
+                  {/* Home body: chips, groups list, CTA — unchanged from your original */}
+                  <div>
+                    <div className="mt-6">
+                      <p className="text-sm text-[#54555A]">Find by condition</p>
+                      <ChipCarouselEmbla
+                        className="mt-3"
+                        items={chipItems}
+                        selectedId={selectedChip?.id}
+                        onChange={(id) => {
+                          if (id === selectedChip?.id) {
+                            setSelectedChip(undefined);
+                          } else {
+                            const chip = chipItems.find((c) => c.id === id);
+                            setSelectedChip(chip);
+                          }
+                        }}
                       />
-                    </Link>
+                    </div>
+
+                    <section className="mt-8 w-full">
+                      <h2 className="text-[20px] font-bold text-[#18448A] text-center md:text-left">
+                        {selectedChip ? selectedChip.label : 'All'} Support Group(s)
+                      </h2>
+                      <p className="mt-1 text-[14px] text-[#54555A] text-center md:text-left">
+                        Showing {Math.min(displayedGroups.length, visibleGroups.length)} of {visibleGroups.length} groups
+                      </p>
+
+                      <div className="mt-4 flex flex-col items-center gap-4">
+                        {displayedGroups.length === 0 && (
+                          <div className="text-sm text-[#54555A]">No groups found.</div>
+                        )}
+
+                        {displayedGroups.map((c) => {
+                          const href = `/group/${c.id}`;
+
+                          return (
+                            <div key={c.id} className="w-full max-w-[360px] mx-auto">
+                              <Link href={href} prefetch={true} className="block w-full" onPointerEnter={() => { router.prefetch?.(href); }}>
+                                <SupportGroupCard
+                                  {...c}
+                                  href={href}
+                                  className="w-full"
+                                  isMember={Boolean(membershipMap[c.id] ?? (c as any).isMember)}
+                                  onJoin={() => handleJoin(c.id)}
+                                  onLeave={() => handleLeave(c.id)}
+                                />
+                              </Link>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-5 flex justify-center">
+                        {!allLoaded ? (
+                          <button type="button" onClick={handleLoadMore} className="h-11 px-6 rounded-lg border border-[#16AF9F] text-[#16AF9F] text-sm font-medium">
+                            Load More
+                          </button>
+                        ) : (
+                          <button type="button" disabled className="h-11 px-6 rounded-lg border border-[#E5E7EB] text-[#9AA6B2] text-sm font-medium cursor-not-allowed">
+                            No more groups
+                          </button>
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="mt-8 mb-10 rounded-none bg-gradient-to-b from-[#16AF9F] to-[#18448A] text-white -mx-6 px-6 py-8">
+                      <h2 className="text-[28px] leading-9 font-bold text-center">
+                        Can’t Find the Right
+                        <br />
+                        Support Group?
+                      </h2>
+                      <p className="mt-3 text-[14px] leading-5 text-center">Help us create the support group you need. Share your suggestion and we’ll work to make it happen.</p>
+
+                      <div className="mt-6 rounded-lg bg-white text-[#18448A]">
+                        <div className="h-10 rounded-t-lg bg-[#A4DBD6] flex items-center px-4 text-[14px] font-bold">What support group would you like to see?</div>
+                        <div className="p-4">
+                          <textarea rows={5} className="w-full rounded-md border border-[#E5E7EB] p-3 text-[14px] text-[#717176] placeholder-[#717176] outline-none focus:ring-2 focus:ring-[#16AF9F]" placeholder="Write here… your condition, support type, and meeting preference" />
+                        </div>
+                      </div>
+
+                      <div className="mt-4">
+                        <button type="button" className="w-full h-14 rounded-lg bg-[#16AF9F] text-white text-[16px] font-medium">Submit Suggestion</button>
+                      </div>
+                    </section>
                   </div>
-                )
-              })}
-            </div>
-
-            <div className="mt-5 flex justify-center">
-              {!allLoaded ? (
-                <button type="button" onClick={handleLoadMore} className="h-11 px-6 rounded-lg border border-[#16AF9F] text-[#16AF9F] text-sm font-medium">
-                  Load More
-                </button>
+                </motion.div>
               ) : (
-                <button type="button" disabled className="h-11 px-6 rounded-lg border border-[#E5E7EB] text-[#9AA6B2] text-sm font-medium cursor-not-allowed">
-                  No more groups
-                </button>
+                // SEARCH body (no searchbar here — the shared searchbar above is the one that morphed)
+                <motion.div
+                  key="search-body"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.16 }}
+                >
+                  {/* Render SearchPageClient but tell it to hide its builtin search bar since parent owns it */}
+                  <SearchPageClient
+                    initialTrending={initialTrending}
+                    initialCurrentUser={null}
+                    hideSearchBar={true}
+                    onClose={closeSearch}
+                    query={q}
+                    onQueryChange={setQ}
+                  />
+                </motion.div>
               )}
-            </div>
-          </section>
-
-          <section className="mt-8 mb-10 rounded-none bg-gradient-to-b from-[#16AF9F] to-[#18448A] text-white -mx-6 px-6 py-8">
-            <h2 className="text-[28px] leading-9 font-bold text-center">
-              Can’t Find the Right
-              <br />
-              Support Group?
-            </h2>
-            <p className="mt-3 text-[14px] leading-5 text-center">Help us create the support group you need. Share your suggestion and we’ll work to make it happen.</p>
-
-            <div className="mt-6 rounded-lg bg-white text-[#18448A]">
-              <div className="h-10 rounded-t-lg bg-[#A4DBD6] flex items-center px-4 text-[14px] font-bold">What support group would you like to see?</div>
-              <div className="p-4">
-                <textarea rows={5} className="w-full rounded-md border border-[#E5E7EB] p-3 text-[14px] text-[#717176] placeholder-[#717176] outline-none focus:ring-2 focus:ring-[#16AF9F]" placeholder="Write here… your condition, support type, and meeting preference" />
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <button type="button" className="w-full h-14 rounded-lg bg-[#16AF9F] text-white text-[16px] font-medium">Submit Suggestion</button>
-            </div>
-          </section>
+            </AnimatePresence>
+          </div>
         </div>
       </main>
     </div>
-  )
+  );
 }
 
-// replace existing StatTile export
+
+// StatTile unchanged
 export function StatTile({
   number,
   label,

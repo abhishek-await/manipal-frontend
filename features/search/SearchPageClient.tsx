@@ -12,13 +12,41 @@ import { authApi } from "@/features/auth/api/auth.api";
 type Props = {
   initialTrending: Card[];
   initialCurrentUser?: any | null;
+  initialQuery?: string;
+  hideSearchBar?: boolean;
+  onClose?: () => void;
+  query?: string; // controlled query (optional)
+  onQueryChange?: (q: string) => void; // controlled change handler (optional)
 };
 
-export default function SearchPageClient({ initialTrending = [], initialCurrentUser = null }: Props) {
-  const [query, setQuery] = useState("");
+export default function SearchPageClient({
+  initialTrending = [],
+  initialCurrentUser = null,
+  initialQuery = "",
+  hideSearchBar = false,
+  onClose,
+  query: controlledQuery,
+  onQueryChange,
+}: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // Local query state; will be synced from parent when parent provides controlledQuery
+  const [localQuery, setLocalQuery] = useState<string>(controlledQuery ?? initialQuery ?? "");
+  // If parent controls query, sync localQuery when controlledQuery changes
+  useEffect(() => {
+    if (typeof controlledQuery === "string") {
+      setLocalQuery(controlledQuery);
+    }
+  }, [controlledQuery]);
+
+  // When user types locally, either update parent (if onQueryChange provided) or local state
+  const handleSetQuery = (val: string) => {
+    if (onQueryChange) onQueryChange(val);
+    setLocalQuery(val);
+  };
+
+  // other state
   const [results, setResults] = useState<Card[]>([]);
   const [total, setTotal] = useState<number | undefined>(undefined);
   const [loading, setLoading] = useState<boolean>(false);
@@ -26,15 +54,12 @@ export default function SearchPageClient({ initialTrending = [], initialCurrentU
   const [trending, setTrending] = useState<Card[]>(initialTrending.slice(0, 4));
   const trendingMemo = useMemo(() => trending.slice(0, 4), [trending]);
 
-  // optional server-hydrated user or fetch on client
   const [currentUser, setCurrentUser] = useState<any | null>(initialCurrentUser ?? null);
-
-  // membershipMap seeded from server flags (is_member / isMember)
   const [membershipMap, setMembershipMap] = useState<Record<string, boolean>>({});
 
   const pendingRef = useRef<Set<string>>(new Set());
 
-  // focus handling for ?focus=1
+  // focus handling for ?focus=1 - unchanged
   useEffect(() => {
     const focusFlag = searchParams?.get("focus");
     if (focusFlag === "1") {
@@ -65,12 +90,14 @@ export default function SearchPageClient({ initialTrending = [], initialCurrentU
         setCurrentUser(null);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [initialCurrentUser]);
 
-  // debounced search
+  // Debounced search effect uses localQuery (which will be synced with parent)
   useEffect(() => {
-    const q = query.trim();
+    const q = localQuery.trim();
     if (q === "") {
       setResults([]);
       setTotal(undefined);
@@ -103,12 +130,12 @@ export default function SearchPageClient({ initialTrending = [], initialCurrentU
       controller.abort();
       aborted = true;
     };
-  }, [query]);
+  }, [localQuery]);
 
-  const isSearching = query.trim().length > 0;
+  const isSearching = localQuery.trim().length > 0;
   const noResults = !loading && isSearching && results.length === 0;
 
-  // Helper to read server flag (supports both fields)
+  // Helper to read server membership flag
   const readServerMembershipFlag = (g: Card) => {
     const anyG = g as any;
     if (anyG.is_member !== undefined) return Boolean(anyG.is_member);
@@ -116,7 +143,6 @@ export default function SearchPageClient({ initialTrending = [], initialCurrentU
     return undefined;
   };
 
-  // Seed membershipMap from server flags whenever results or trending update
   useEffect(() => {
     const seed: Record<string, boolean> = {};
     const src = isSearching ? results : trendingMemo;
@@ -130,14 +156,12 @@ export default function SearchPageClient({ initialTrending = [], initialCurrentU
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results, trendingMemo, isSearching]);
 
-  // optimistic updates helper
   function setGroupIsMemberInArrays(groupId: string, isMember: boolean) {
     setResults((prev) => prev.map((g) => (String(g.id) === String(groupId) ? { ...(g as any), is_member: isMember, isMember } : g)));
     setTrending((prev) => prev.map((g) => (String(g.id) === String(groupId) ? { ...(g as any), is_member: isMember, isMember } : g)));
     setMembershipMap((m) => ({ ...m, [groupId]: isMember }));
   }
 
-  // Join / Leave (optimistic). Require auth redirect on missing user.
   const handleJoin = async (groupId: string) => {
     if (!currentUser) {
       router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`);
@@ -151,7 +175,6 @@ export default function SearchPageClient({ initialTrending = [], initialCurrentU
     try {
       await groupApi.joinGroup(groupId);
     } catch (err: any) {
-      // rollback
       setGroupIsMemberInArrays(groupId, false);
       if (err?.message?.toLowerCase().includes("unauthorized")) {
         authApi.clearTokens?.();
@@ -177,7 +200,6 @@ export default function SearchPageClient({ initialTrending = [], initialCurrentU
     try {
       await groupApi.leaveGroup(groupId);
     } catch (err: any) {
-      // rollback
       setGroupIsMemberInArrays(groupId, true);
       if (err?.message?.toLowerCase().includes("unauthorized")) {
         authApi.clearTokens?.();
@@ -190,7 +212,6 @@ export default function SearchPageClient({ initialTrending = [], initialCurrentU
     }
   };
 
-  // Determine isMember to send to card: membershipMap -> server flag -> false
   const getIsMemberForRender = (g: Card) => {
     const id = String(g.id);
     if (membershipMap[id] !== undefined) return Boolean(membershipMap[id]);
@@ -199,37 +220,47 @@ export default function SearchPageClient({ initialTrending = [], initialCurrentU
     return false;
   };
 
-  const displayedGroups = useMemo(() => {
-    if (isSearching) return results;
-    return trendingMemo;
-  }, [isSearching, results, trendingMemo]);
+  // Back handling: if parent supplied onClose, call it; else router.back()
+  const handleBack = () => {
+    if (onClose) onClose();
+    else router.back();
+  };
 
   return (
     <main className="min-h-screen w-full bg-white flex justify-center items-start">
       <div className="w-full max-w-[375px] px-4 pb-[max(24px,env(safe-area-inset-bottom))] mx-auto">
         <div className="flex items-center gap-3 pt-4">
-          <button type="button" aria-label="Back" className="h-6 w-6 flex-shrink-0" onClick={() => router.back()}>
-            <img src="/arrow-left.svg" alt="Back" className="h-6 w-6 object-contain" />
-          </button>
+          {/* Only render the back button when child should render its own bar.
+              If hideSearchBar is true, parent already renders the back button. */}
+          {!hideSearchBar && (
+            <button type="button" aria-label="Back" className="h-6 w-6 flex-shrink-0" onClick={handleBack}>
+              <img src="/arrow-left.svg" alt="Back" className="h-4 w-4 object-contain" />
+            </button>
+          )}
 
           <div className="relative flex-1">
-            <SearchBar
-              value={query}
-              onChange={(val: string) => setQuery(val)}
-              placeholder="Find a support group"
-              navigateOnInteract={false}
-              autoFocus={false}
-            />
-            {isSearching && (
+            {/* If parent asked us to hide the search bar, don't render it.
+                Otherwise render our own SearchBar (controlled by localQuery). */}
+            {!hideSearchBar && (
+              <SearchBar
+                value={localQuery}
+                onChange={(val: string) => handleSetQuery(val)}
+                placeholder="Find a support group"
+                navigateOnInteract={false}
+                autoFocus={false}
+              />
+            )}
+
+            {/* {isSearching && (
               <button
                 type="button"
-                onClick={() => setQuery("")}
+                onClick={() => handleSetQuery("")}
                 aria-label="Clear search"
                 className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5"
               >
                 <Image src="/close.svg" alt="Clear" width={11.09} height={11.09} />
               </button>
-            )}
+            )} */}
           </div>
         </div>
 
@@ -238,7 +269,7 @@ export default function SearchPageClient({ initialTrending = [], initialCurrentU
             ? "Top trending support groups"
             : loading
             ? "Searching…"
-            : `Showing “${query.trim()}” support groups${typeof total === "number" ? ` (${total})` : ""}`}
+            : `Showing “${localQuery.trim()}” support groups${typeof total === "number" ? ` (${total})` : ""}`}
         </h2>
 
         <div className="mt-4 space-y-4">
@@ -262,10 +293,11 @@ export default function SearchPageClient({ initialTrending = [], initialCurrentU
               <div className="w-full max-w-[342px] mx-auto bg-[#F7F7F7] rounded-[12px] p-6 flex flex-col items-center text-center">
                 <Image src="/no-results.svg" alt="no results icon" width={48} height={48} className="mb-2 opacity-60" />
                 <div className="text-[20px] font-medium text-[#333333]">No Group Found</div>
-                <div className="mt-2 text-sm text-[#6B7280]">Here are trending groups you might be interested in</div>
+                {/* <div className="mt-2 text-sm text-[#6B7280]">Here are trending groups you might be interested in</div> */}
               </div>
 
-              {/* trending fallback */}
+              <h2 className="mt-6 text-[16px] leading-6 font-medium text-[#333333]">Top Trending Support Groups</h2>
+
               <div className="mt-4 space-y-4">
                 {trendingMemo.map((c) => (
                   <SupportGroupCard
@@ -281,7 +313,7 @@ export default function SearchPageClient({ initialTrending = [], initialCurrentU
           )}
 
           {!loading && !noResults &&
-            (displayedGroups.map((c) => (
+            ( (isSearching ? results : trendingMemo).map((c) => (
               <SupportGroupCard
                 key={c.id}
                 {...c}

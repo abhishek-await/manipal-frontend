@@ -1,10 +1,13 @@
-// src/components/Footer.tsx
 'use client'
 
 import Image from 'next/image'
 import Link from 'next/link'
+import { useSearchStore } from "@/features/search/searchStore"
 
 export default function Footer() {
+  const isSearchOpen = useSearchStore((s) => s.isSearchOpen)
+  if (isSearchOpen) return null // hide footer when search is open
+
   const platform = [
     { label: 'Support Groups', href: '#' },
     { label: 'Health Journeys', href: '#' },
@@ -35,7 +38,6 @@ export default function Footer() {
     { label: 'HIPAA Compliance', href: '#' },
   ]
 
-  // Styles per spec
   const hJakarta =
     "text-[16px] leading-5 font-bold tracking-[-0.02em] text-[#18448A] font-['Plus_Jakarta_Sans']"
   const hHelvetica =
@@ -45,11 +47,9 @@ export default function Footer() {
 
   return (
     <footer className="mx-auto w-full max-w-[390px] px-6 py-10">
-      {/* content width per figma: 313px */}
       <div className="mx-auto max-w-[313px]">
         {/* 2x2 grid */}
         <div className="grid grid-cols-2 gap-y-10 gap-x-6">
-          {/* Platform (Helvetica Neue heading) */}
           <div className="w-[106px] flex flex-col gap-4">
             <h3 className={hHelvetica}>Platform</h3>
             <nav className="space-y-2">
@@ -61,7 +61,6 @@ export default function Footer() {
             </nav>
           </div>
 
-          {/* Resources (Helvetica Neue heading) */}
           <div className="w-[108px] flex flex-col gap-4">
             <h3 className={hHelvetica}>Resources</h3>
             <nav className="space-y-2">
@@ -73,7 +72,6 @@ export default function Footer() {
             </nav>
           </div>
 
-          {/* Company (Plus Jakarta Sans heading) */}
           <div className="w-[80px] flex flex-col gap-4">
             <h3 className={hJakarta}>Company</h3>
             <nav className="space-y-2">
@@ -85,7 +83,6 @@ export default function Footer() {
             </nav>
           </div>
 
-          {/* Legal (Plus Jakarta Sans heading) */}
           <div className="w-[108px] flex flex-col gap-4">
             <h3 className={hJakarta}>Legal</h3>
             <nav className="space-y-2">
@@ -98,10 +95,10 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Logo + copyright (gap 23px, height auto) */}
+        {/* Logo + copyright */}
         <div className="mt-10 flex flex-col items-center gap-[23px]">
           <Image
-            src="/logo_1.svg"   // replace with your asset
+            src="/logo_1.svg"
             alt="Manipal Community Connect"
             width={91}
             height={48}

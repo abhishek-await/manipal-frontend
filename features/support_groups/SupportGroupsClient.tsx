@@ -14,6 +14,7 @@ import Link from "next/link";
 
 import { LayoutGroup, motion, AnimatePresence } from "framer-motion";
 import SearchPageClient from "@/features/search/SearchPageClient";
+import { useSearchStore } from "../search/searchStore";
 
 const PAGE_SIZE = 4;
 
@@ -34,8 +35,7 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
   const router = useRouter();
 
   // --- search / morph state ---
-  const [isSearchOpen, setIsSearchOpen] = useState(false); // when true, we render search-page content (single page)
-  const [q, setQ] = useState("");
+  const { isSearchOpen, openSearch, closeSearch, q, setQ } = useSearchStore();
 
   // prepare a small trending list to feed the search UI when shown
   const initialTrending = useMemo(() => {
@@ -47,12 +47,12 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
     })).slice(0, 4) as Card[];
   }, [initialGroups]);
 
-  const openSearch = () => setIsSearchOpen(true);
-  const closeSearch = () => {
-    setQ("");              // clear immediately
-    // a tiny delay or rAF helps ensure input sees the value before morph starts
-    requestAnimationFrame(() => setIsSearchOpen(false));
-  };
+  // const openSearch = () => setIsSearchOpen(true);
+  // const closeSearch = () => {
+  //   setQ("");              // clear immediately
+  //   // a tiny delay or rAF helps ensure input sees the value before morph starts
+  //   requestAnimationFrame(() => setIsSearchOpen(false));
+  // };
 
   // --- keep your previous app state and handlers (unchanged) ---
   const [groups, setGroups] = useState<Card[]>(initialGroups ?? []);

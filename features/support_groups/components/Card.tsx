@@ -407,7 +407,8 @@ export default function SupportGroupCard({
 
           <div className="mt-4">
             {isMember ? (
-              <MemberBadge onClick={() => { /* optional management UI */ }} />
+              // <MemberBadge onClick={() => { /* optional management UI */ }} />
+              <div></div>
             ) : (
               <button
                 type="button"

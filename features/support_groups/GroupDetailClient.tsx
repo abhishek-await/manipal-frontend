@@ -9,7 +9,8 @@ import Image from "next/image";
 import { authApi } from "@/features/auth/api/auth.api";
 import { groupApi } from "@/features/support_groups/api/group.api";
 import { PostCardProps as Post } from "@/features/support_groups/components/PostCard";
-import { motion } from "framer-motion";
+import { motion } from "framer-motion"
+import ShareSheet, { ShareData } from "@/features/support_groups/components/ShareSheet";
 
 export default function GroupDetailClient({
   initialGroup,
@@ -47,6 +48,9 @@ export default function GroupDetailClient({
 
   const [joinedAnimate, setJoinedAnimate] = useState(false);
   const joinAnimTimer = useRef<number | null>(null);
+
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareData, setShareData] = useState<ShareData | null>(null);
 
   // If server didn't provide currentUser, detect on client (only then)
   useEffect(() => {
@@ -402,7 +406,40 @@ export default function GroupDetailClient({
     };
   }, []);
 
-  
+  // helper that builds an absolute url (safe on SSR)
+  const makeUrl = (path: string) => {
+    if (typeof window !== "undefined" && window.location?.origin) {
+      return `${window.location.origin}${path}`;
+    }
+    // fallback relative path (OK for client navigation)
+    return path;
+  };
+
+  const openShareForPost = (p: { id: string; title?: string; excerpt?: string; tag?: string }) => {
+    const path = `/support-group/${groupId}/post/${p.id}`;
+    setShareData({
+      title: p.title ?? "Post from Group",
+      excerpt: p.excerpt,
+      tags: p.tag ? [p.tag] : [],
+      url: makeUrl(path),
+      sourceLogo: group?.imageSrc ?? "/mcc-logo.png", // optional: adjust field name to your group model
+      sourceText: group?.title ? `Shared from ${group.title}` : "Shared from Group",
+    });
+    setShareOpen(true);
+  };
+
+  const openShareForGroup = () => {
+    const path = `/support-group/${groupId}`;
+    setShareData({
+      title: group?.title ?? "Support group",
+      excerpt: group?.description,
+      tags: [], // optional
+      url: makeUrl(path),
+      sourceLogo: group?.imageSrc ?? "/mcc-logo.png",
+      sourceText: group?.title ? `Shared from ${group.title}` : "Shared from Group",
+    });
+    setShareOpen(true);
+  };
 
   return (
     <>
@@ -530,6 +567,11 @@ export default function GroupDetailClient({
                   likeCount={p.likeCount ?? 0}
                   replyCount={p.replyCount ?? 0}
                   className="w-full rounded-xl"
+                  onToggleLike={() => {
+                    // if you want parent to control like state, implement
+                    return updatePostLikeState(p.id, !p.isLiked, (p.likeCount ?? 0) + (p.isLiked ? -1 : 1));
+                  }}
+                  onShare={(postPayload) => openShareForPost(postPayload)}
                 />
               </div>
             ))}
@@ -757,6 +799,7 @@ export default function GroupDetailClient({
           </div>
         )}
       </div>
+    <ShareSheet open={shareOpen} onClose={() => { setShareOpen(false); setShareData(null); }} data={shareData} /> 
     </>
   );
 }

@@ -29,6 +29,7 @@ export type PostCardProps = {
   // optional callback to notify parent when user navigates to comment page
   // parent can use this to update reply counts / analytics etc.
   onReplyNavigate?: () => void;
+  onShare?: (payload: { id: string; title?: string; excerpt?: string; tag?: string }) => void;
 };
 
 export default function PostCard({
@@ -46,6 +47,7 @@ export default function PostCard({
   replyCount: replyCountProp,
   onToggleLike,
   onReplyNavigate,
+  onShare,
 }: PostCardProps) {
   const router = useRouter();
 
@@ -299,7 +301,46 @@ export default function PostCard({
             <span className="ml-2 text-[#6B7280]">{replyCountDisplay}</span>
           </button>
 
-          <button className="flex items-center gap-2 text-gray-600 px-2 py-1" onClick={() => { /* outer parent can handle share if wrapped in Link */ }}>
+          <button
+            className="flex items-center gap-2 text-gray-600 px-2 py-1"
+            onClick={(e) => {
+              e.stopPropagation();
+              // if parent wants to handle share, delegate
+              if (typeof onShare === "function") {
+                onShare({ id, title, excerpt, tag });
+                return;
+              }
+
+              // fallback (very small fallback): try native share, else copy current location
+              (async () => {
+                try {
+                  const shareUrl = typeof window !== "undefined" ? window.location.href : "";
+                  if (navigator.share) {
+                    await navigator.share({
+                      title: title || "Post",
+                      text: excerpt || title || "",
+                      url: shareUrl,
+                    });
+                  } else if (navigator.clipboard) {
+                    await navigator.clipboard.writeText(shareUrl);
+                    // optionally show a toast (not implemented here)
+                  } else {
+                    // last-resort fallback
+                    const tmp = document.createElement("input");
+                    tmp.value = shareUrl;
+                    document.body.appendChild(tmp);
+                    tmp.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(tmp);
+                  }
+                } catch (err) {
+                  console.warn("share fallback failed", err);
+                }
+              })();
+            }}
+            aria-label="Share post"
+            type="button"
+          >
             <Image src="/share.svg" alt="Share" width={20} height={20} />
             <span>Share</span>
           </button>

@@ -410,6 +410,7 @@ export default function CommentClient({
           likeCount={likeCount}
           replyCount={replyCount}
           onToggleLike={handleToggleLike}
+          className="rounded-none"
         />
       </div>
 

@@ -122,39 +122,72 @@ export default function GroupDetailClient({
   }, [searchParams, groupId]);
 
   // detect success query param and show success overlay + toast sequence
+  // in GroupDetailClient.tsx — replace the success-useEffect block with the following
   useEffect(() => {
     const s = searchParams?.get("success");
-    if (!s) return;
+    const pending = searchParams?.get("pending");
+    const rejected = searchParams?.get("rejected");
     const imgParam = searchParams?.get("successImage");
     const decodedImage = imgParam ?? null;
     setSuccessImage(decodedImage);
 
-    // Show full-screen overlay briefly, then toast
-    setShowSuccessFull(true);
-    const t1 = window.setTimeout(() => {
-      setShowSuccessFull(false);
+    // handle approved success
+    if (s) {
+      setShowSuccessFull(true);
+      const t1 = window.setTimeout(() => {
+        setShowSuccessFull(false);
+        setShowSuccessToast(true);
+
+        const t2 = window.setTimeout(() => {
+          setShowSuccessToast(false);
+
+          // clean up params
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("success");
+            url.searchParams.delete("successImage");
+            url.searchParams.delete("newPostId");
+            window.history.replaceState({}, "", url.toString());
+          } catch (e) {}
+        }, 2500);
+
+        return () => window.clearTimeout(t2);
+      }, 1200);
+
+      return () => window.clearTimeout(t1);
+    }
+
+    // handle pending moderation
+    if (pending) {
       setShowSuccessToast(true);
-
-      const t2 = window.setTimeout(() => {
+      // replace text inside SuccessToast? (we'll reuse the green toast but change text below)
+      const t = window.setTimeout(() => {
         setShowSuccessToast(false);
-
-        // clean up success params so UI doesn't replay on refresh
         try {
           const url = new URL(window.location.href);
-          url.searchParams.delete("success");
-          url.searchParams.delete("successImage");
-          url.searchParams.delete("newPostId"); // also safe to remove
+          url.searchParams.delete("pending");
+          url.searchParams.delete("newPostId");
           window.history.replaceState({}, "", url.toString());
-        } catch (e) {
-          // ignore
-        }
-      }, 2500);
+        } catch (e) {}
+      }, 3000);
 
-      return () => window.clearTimeout(t2);
-    }, 1200);
+      return () => window.clearTimeout(t);
+    }
 
-    return () => window.clearTimeout(t1);
+    // handle rejected - show a dismissible inline alert at top (or toast)
+    if (rejected) {
+      // you could show a modal or inline message — for simplicity we'll set a small toast-like state
+      // Re-using showSuccessToast to present a neutral message is okay, but better to implement a dedicated state if preferred.
+      alert("Your post was rejected by moderation. Please modify it to meet community guidelines and try again.");
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("rejected");
+        url.searchParams.delete("newPostId");
+        window.history.replaceState({}, "", url.toString());
+      } catch (e) {}
+    }
   }, [searchParams]);
+
 
   useEffect(() => {
     let mounted = true;
@@ -832,6 +865,8 @@ function SuccessOverlay({ image, onClose }: { image?: string | null; onClose?: (
 
 
 function SuccessToast({ image, onClose }: { image?: string | null, onClose?: () => void }) {
+  const pending = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("pending");
+  const text = pending ? "Your post is pending review" : "Your post has been shared in the group feed";
   return (
     <motion.div
       initial={{ y: 32, opacity: 0 }}
@@ -886,7 +921,7 @@ function SuccessToast({ image, onClose }: { image?: string | null, onClose?: () 
           overflow: "hidden",
           textOverflow: "ellipsis",
         }}>
-          Your post has been shared in the group feed
+          {text}
         </div>
       </div>
     </motion.div>

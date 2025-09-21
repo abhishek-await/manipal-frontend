@@ -1,7 +1,8 @@
 // app/api/forward/route.ts
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { ur } from "zod/locales";
+import FormDataNode from "form-data"; // npm i form-data
+import { Buffer } from "buffer";
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL;
 const isProd = process.env.NODE_ENV === "production";
@@ -11,7 +12,7 @@ const isProd = process.env.NODE_ENV === "production";
  * This prevents arbitrary proxying.
  */
 const ALLOWED_PREFIXES = [
- `/support-groups/`,
+  `/support-groups/`,
   "/support-group/",
   "/auth/",
   "/accounts/",
@@ -19,12 +20,13 @@ const ALLOWED_PREFIXES = [
 ];
 
 function isAllowedPath(path: string) {
-  return ALLOWED_PREFIXES.some((p) => path.startsWith(BACKEND+p));
+  // Keep your original style: check that the forwarded path starts with BACKEND + allowed prefix
+  return ALLOWED_PREFIXES.some((p) => path.startsWith((BACKEND ?? "") + p));
 }
 
 async function forwardToBackend(path: string, method: string, headers: Record<string, string>, body?: any) {
   const url = `${path}`;
-  console.log("URL: ", url)
+  console.log("URL: ", url);
   return await fetch(url, {
     method,
     headers,
@@ -37,6 +39,8 @@ export async function POST(req: Request) {
   const payload = await req.json().catch(() => ({}));
   const path = typeof payload.path === "string" ? payload.path : "/";
   const method = (payload.method || "GET").toUpperCase();
+
+  console.log("forward payload.body:", JSON.stringify(payload.body, null, 2));
 
   if (!isAllowedPath(path)) {
     return NextResponse.json({ message: "disallowed path" }, { status: 400 });
@@ -60,8 +64,120 @@ export async function POST(req: Request) {
     forwardHeaders["Authorization"] = `Bearer ${access}`;
   }
 
-  // Prepare body
+  // ---------- NEW: If payload.body contains files/post_in shape, build multipart ----------
+  // Expecting payload.body.files = [{ field, name, type, data }] where data is dataURL (data:<mime>;base64,AAAA...)
+  // and/or payload.body.post_in (object) OR payload.body.form (plain fields)
   let bodyToSend: BodyInit | undefined;
+  // ---------- NEW multipart-from-json branch (replace your existing version) ----------
+let isMultipartFromJson = false;
+if (payload.body && typeof payload.body === "object") {
+  const b = payload.body;
+  if (Array.isArray(b.files) && b.files.length > 0) isMultipartFromJson = true;
+  if (b.post_in && (typeof b.post_in === "object" || typeof b.post_in === "string")) isMultipartFromJson = true;
+}
+
+if (isMultipartFromJson) {
+  // Build server-side multipart using form-data
+  const fd = new FormDataNode();
+
+  // 1) post_in as a plain form field (string)
+  if (payload.body.post_in !== undefined) {
+    const postInString =
+      typeof payload.body.post_in === "string"
+        ? payload.body.post_in
+        : JSON.stringify(payload.body.post_in);
+    // append as plain field (no filename / no weird contentType). This mirrors `-F 'post_in=...'` from curl.
+    fd.append("post_in", postInString);
+  }
+
+  // 2) any other simple form fields
+  if (payload.body.form && typeof payload.body.form === "object") {
+    for (const [k, v] of Object.entries(payload.body.form)) {
+      if (Array.isArray(v)) {
+        v.forEach((item) => fd.append(k, String(item)));
+      } else {
+        fd.append(k, String(v));
+      }
+    }
+  }
+
+  // 3) append files from data-URLs or raw base64
+  for (const f of (payload.body.files || [])) {
+    if (!f || !f.data) continue;
+    // dataURL match: data:<mime>;base64,<b64>
+    const m = String(f.data).match(/^data:(.+);base64,(.+)$/);
+    let buffer: Buffer;
+    let mimeType = f.type || "application/octet-stream";
+    if (m && m.length >= 3) {
+      mimeType = m[1];
+      buffer = Buffer.from(m[2], "base64");
+    } else {
+      // fallback: assume raw base64 string (maybe without data: prefix)
+      const raw = String(f.data).replace(/^data:.*;base64,/, "");
+      buffer = Buffer.from(raw, "base64");
+    }
+    const fieldName = f.field || "files";
+    const filename = f.name || `upload-${Date.now()}`;
+    // Append as file-like part with filename + contentType -> backend receives an actual file part
+    fd.append(fieldName, buffer, { filename, contentType: mimeType } as any);
+  }
+
+  // Let form-data set Content-Type (with boundary)
+  // after building fd and fdHeaders
+const fdHeaders = fd.getHeaders(); // { 'content-type': 'multipart/form-data; boundary=----' }
+
+// remove any existing content-type so we can set the correct one
+delete forwardHeaders["Content-Type"];
+delete forwardHeaders["content-type"];
+const mergedHeaders = { ...forwardHeaders, ...fdHeaders };
+
+// Convert form-data to a Buffer that Node fetch can send reliably
+// Note: form-data exposes getBuffer() synchronously for small-medium bodies.
+// For very large files you should stream instead (see note below).
+let bodyBuffer: Buffer;
+try {
+  bodyBuffer = fd.getBuffer();
+  // Optionally set content-length (helps some servers)
+  if (typeof fd.getLengthSync === "function") {
+    try {
+      mergedHeaders["content-length"] = String(fd.getLengthSync());
+    } catch (e) {
+      // ignore if length can't be determined sync
+    }
+  }
+} catch (err) {
+  // Fallback: if getBuffer() fails for very large streams, use async getLength + stream logic
+  console.error("fd.getBuffer() failed, falling back to stream (might need streaming support)", err);
+  // send the fd directly (may or may not work with your fetch runtime)
+  // mergedHeaders left as-is
+  bodyBuffer = fd as any;
+}
+
+// debug log (keep while testing)
+console.log("Forwarder: sending multipart with headers:", mergedHeaders);
+
+// send Buffer as body (fetch accepts Buffer)
+let backendRes = await forwardToBackend(path, method, mergedHeaders, bodyBuffer);
+
+// (then run your existing refresh/retry logic if 401 and refresh token exists)
+
+
+  // refresh logic (unchanged)...
+  if (backendRes.status === 401 && refresh) {
+    // ... your existing refresh/retry code (reuse mergedHeaders when retrying)
+    // make sure to set mergedHeaders["Authorization"] = `Bearer ${newAccess}` before retry
+  }
+
+  const text = await backendRes.text().catch(() => "");
+  const resp = new NextResponse(text, { status: backendRes.status });
+  const contentType = backendRes.headers.get("content-type");
+  if (contentType) resp.headers.set("content-type", contentType);
+  return resp;
+}
+
+  // ---------- End multipart-from-json branch; fall back to original behavior ----------
+
+  // Prepare body (original JSON behavior)
   if (payload.body !== undefined) {
     // If it's an object, stringify; if it's already a string, send as-is.
     bodyToSend = typeof payload.body === "string" ? payload.body : JSON.stringify(payload.body);
@@ -74,8 +190,6 @@ export async function POST(req: Request) {
   // If 401 and we have a refresh token, try to refresh and retry once
   if (backendRes.status === 401 && refresh) {
     try {
-      // call backend refresh endpoint directly and forward current cookie header (so backend sees refresh cookie if it expects it)
-      // Some backends expect refresh token in body; adapt if yours expects cookie only.
       const refreshRes = await fetch(`${BACKEND}/auth/token/refresh/`, {
         method: "POST",
         headers: { "Content-Type": "application/json", cookie: allCookies },

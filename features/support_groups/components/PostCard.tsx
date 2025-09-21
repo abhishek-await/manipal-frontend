@@ -3,7 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
 import { timeAgo } from "./Card";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { groupApi } from "@/features/support_groups/api/group.api";
 import { authApi } from "@/features/auth/api/auth.api";
@@ -145,16 +145,59 @@ export default function PostCard({
     // navigate to comments page
     const href = `/support-group/${id}/comment`;
     try {
+      // if prefetch hasn't happened yet, prefetch here as a last-second attempt
       router.prefetch?.(href);
     } catch {}
     router.push(href);
   };
 
-  useEffect(() => {
-  setReplyCountLocal(replyCountProp ?? 0);
-}, [replyCountProp]);
+  // --- PREFETCH on hover/focus (new) ---
+  const prefetchedRef = useRef(false);
+  const prefetchComments = async () => {
+    if (prefetchedRef.current) return;
+    prefetchedRef.current = true;
 
-// add this effect to listen for reply-created events
+    const href = `/support-group/${id}/comment`;
+
+    try {
+      // Prefetch the route bundle / data (Next.js client router)
+      router.prefetch?.(href);
+    } catch (e) {
+      // ignore prefetch failures
+    }
+
+    try {
+      // if your groupApi exposes a comments-getter, warm it up (non-blocking)
+      // we guard via runtime check so it won't throw if the function doesn't exist.
+      const maybeFn = (groupApi as any).getComments ?? (groupApi as any).getPostComments ?? (groupApi as any).getReplies;
+      if (typeof maybeFn === "function") {
+        // don't await for too long; this is a best-effort warm up
+        const p = maybeFn(String(id));
+        // attempt a short wait but don't block
+        await Promise.race([p, new Promise((res) => setTimeout(res, 350))]);
+      }
+    } catch (e) {
+      // ignore API warmup errors
+    }
+
+    try {
+      // also warm current user (cheap) so comment page auth checks are ready
+      const u = authApi.getCurrentUser?.();
+      if (u && typeof (u as any).then === "function") {
+        // don't block too long
+        await Promise.race([u, new Promise((res) => setTimeout(res, 250))]);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  // show reply count changes pushed by events
+  useEffect(() => {
+    setReplyCountLocal(replyCountProp ?? 0);
+  }, [replyCountProp]);
+
+  // add this effect to listen for reply-created events
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -180,8 +223,16 @@ export default function PostCard({
     };
   }, [id, replyCountProp]);
 
+  const commentHref = `/support-group/${id}/comment`;
+
   return (
-    <Card className={`w-full border border-gray-200 rounded-xl shadow-sm ${className}`}>
+    // make the whole card focusable so keyboard users can trigger prefetch via focus
+    <Card
+      className={`w-full border border-gray-200 rounded-xl shadow-sm ${className}`}
+      onPointerEnter={prefetchComments}
+      onFocus={prefetchComments}
+      tabIndex={0}
+    >
       <CardContent className="p-2">
         {/* Header */}
         <div className="flex items-start gap-3">
@@ -243,7 +294,7 @@ export default function PostCard({
             <span className="ml-2 text-[#6B7280]">{likeCountDisplay}</span>
           </button>
 
-          <button className="flex items-center gap-2 text-gray-600 px-2 py-1" onClick={handleReply}>
+          <button className="flex items-center gap-2 text-gray-600 px-2 py-1" onClick={handleReply} aria-label="Open comments">
             <Image src="/chat_bubble.svg" alt="Reply" width={20} height={20} />
             <span className="ml-2 text-[#6B7280]">{replyCountDisplay}</span>
           </button>

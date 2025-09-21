@@ -174,19 +174,56 @@ export const groupApi = {
     return res.json()
   },
 
-  createPost: async (groupId: string, data: { title?: string; content: string; category?: number[] }) => {
-    const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/posts/${groupId}/post/`, {
-      method: "POST",
-      headers: { 'Content-Type': 'application/json'},
-      body: JSON.stringify(data || {})
-    })
+  // features/support_groups/api/group.api.ts (replace createPost implementation)
+  // features/support_groups/api/group.api.ts
+  createPost: async (
+    groupId: string,
+    data: { title?: string; content: string; category?: number[]; tag?: string; files?: File[] }
+  ) => {
+    const url = `${API_BASE_URL}/support-groups/posts/${groupId}/post/`;
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => '')
-      throw new Error(`Error creating post: ${res.status} ${text}`)
+    console.log("[CreatePost] Data: ", data)
+
+    // Always send as multipart/form-data per your swagger UI
+    const fd = new FormData();
+
+    // Build the post object exactly as the API expects in `post_in`
+    const postObj: any = {
+      // include only fields expected by backend
+      title: data.title ?? "",
+      content: data.content ?? "",
+      category: Array.isArray(data.category) ? data.category : [],
+    };
+
+    // If you have other keys that backend expects inside post_in, add them here
+    // e.g. postObj.tag = data.tag ?? "";
+
+    // Append post_in as JSON string (server should parse it)
+    // Some servers accept a file blob with application/json; string is fine for most.
+    fd.append("post_in", JSON.stringify(postObj));
+
+    // Append files (append the same key multiple times -> array on server)
+    if (data.files && data.files.length > 0) {
+      data.files.forEach((f) => {
+        // Use key name "files" to match swagger field name "files"
+        fd.append("files", f, f.name);
+      });
     }
 
-    return res.json()
+    console.log("[CreatePost] Form Data: ", fd)
+
+    const res = await authApi.fetchWithAuth(url, {
+      method: "POST",
+      // DO NOT set Content-Type header; browser will set the multipart boundary
+      body: fd,
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Error creating post: ${res.status} ${text}`);
+    }
+
+    return res.json();
   },
 
   getPost: async (postId: string) => {
@@ -249,5 +286,26 @@ export const groupApi = {
     }
 
     return res.json()
+  },
+
+  getPostCategories: async () => {
+    const res = await fetch(`${API_BASE_URL}/support-groups/posts/categories/`,{
+      method: "GET",
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    if(!res.ok){
+      throw new Error("Error fetching post categories")
+    }
+
+    const dummyData = [{
+      id: 0,
+      name: "Medication",
+      description: "Discussions on prescribed medicines, therapies or treatments"
+    }]
+
+    return dummyData
+
   }
 };

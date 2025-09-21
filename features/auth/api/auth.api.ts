@@ -176,19 +176,105 @@ export const authApi = {
 
     // copy headers except Authorization (server will add it)
     if (opts.headers) {
-      // shallow copy of headers object/map to plain object
       const headersObj: Record<string, string> = {};
       if (opts.headers instanceof Headers) {
         opts.headers.forEach((v, k) => (headersObj[k] = v));
       } else if (typeof opts.headers === "object") {
-        Object.assign(headersObj, opts.headers);
+        Object.assign(headersObj, opts.headers as Record<string, string>);
       }
-      delete headersObj["Authorization"]; // server reads cookie
+      delete headersObj["Authorization"];
       payload.headers = headersObj;
     }
 
+    // Helper: convert File -> data URL (data:<mime>;base64,...)
+    const fileToDataURL = (file: File): Promise<string> =>
+      new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(String(fr.result));
+        fr.onerror = (e) => reject(e);
+        fr.readAsDataURL(file);
+      });
+
+    // If body is FormData, convert to JSON-friendly shape your forward route accepts
+    if (opts.body instanceof FormData) {
+      const fd = opts.body as FormData;
+
+      // containers
+      let post_in: any = undefined;
+      const form: Record<string, any> = {};
+      const files: Array<{ field: string; name: string; type: string; data: string }> = [];
+
+      // Iterate entries and collect synchronous fields and file promises
+      const filePromises: Array<Promise<void>> = [];
+
+      for (const [k, v] of fd.entries()) {
+        if (k === "post_in") {
+          // post_in may be a string or a Blob (application/json)
+          if (typeof v === "string") {
+            try {
+              post_in = JSON.parse(v);
+            } catch {
+              // if it's not JSON, keep as string
+              post_in = v;
+            }
+          } else if (v instanceof Blob) {
+            // read the blob as text to parse JSON
+            const p = (async () => {
+              const txt = await v.text();
+              try {
+                post_in = JSON.parse(txt);
+              } catch {
+                post_in = txt;
+              }
+            })();
+            filePromises.push(p as unknown as Promise<void>);
+          } else {
+            // fallback
+            post_in = String(v);
+          }
+          continue;
+        }
+
+        // files (File objects)
+        if (v instanceof File) {
+          const p = (async () => {
+            const dataUrl = await fileToDataURL(v);
+            files.push({ field: k, name: v.name, type: v.type || "application/octet-stream", data: dataUrl });
+          })();
+          filePromises.push(p as Promise<void>);
+          continue;
+        }
+
+        // other non-file fields (strings). Preserve multiple values as arrays.
+        const sval = String(v);
+        if (form[k] === undefined) form[k] = sval;
+        else if (Array.isArray(form[k])) form[k].push(sval);
+        else form[k] = [form[k], sval];
+      }
+
+      // wait for all async readers to finish
+      if (filePromises.length) await Promise.all(filePromises);
+
+      // Build payload.body in the expected shape
+      const bodyShape: any = {};
+      if (post_in !== undefined) bodyShape.post_in = post_in;
+      if (Object.keys(form).length) bodyShape.form = form;
+      if (files.length) bodyShape.files = files;
+
+      payload.body = bodyShape;
+
+      // Send JSON payload to forwarder (UNCHANGED auth behavior)
+      const res = await fetch("/api/forward", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      return res;
+    }
+
+    // Non-FormData behavior: preserve original parsing logic (unchanged)
     if (opts.body) {
-      // if body is string, try parse to object; otherwise keep object
       try {
         payload.body = typeof opts.body === "string" ? JSON.parse(opts.body) : opts.body;
       } catch {
@@ -196,17 +282,16 @@ export const authApi = {
       }
     }
 
-    // call forwarder
-    let res = await fetch("/api/forward", {
+    // call forwarder (unchanged)
+    const res = await fetch("/api/forward", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
-    // If forwarder returned 401, it already attempted refresh/retry internally.
-    // Caller can still get 401 and should treat as unauthenticated.
     return res;
   },
+
 
   // helper to let server set httpOnly cookies after login
   postTokensToServer: async (access: string, refresh: string) => {

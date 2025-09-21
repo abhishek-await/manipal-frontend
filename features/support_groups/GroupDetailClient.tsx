@@ -45,6 +45,9 @@ export default function GroupDetailClient({
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<"latest" | "oldest" | "trending">("latest");
 
+  const [joinedAnimate, setJoinedAnimate] = useState(false);
+  const joinAnimTimer = useRef<number | null>(null);
+
   // If server didn't provide currentUser, detect on client (only then)
   useEffect(() => {
     if (initialCurrentUser) return; // server already hydrated user — skip client fetch
@@ -252,13 +255,46 @@ export default function GroupDetailClient({
       router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`);
       return;
     }
+
+    // optimistic UI
     setIsMember(true);
     setGroup((prev) => (prev ? { ...prev, members: (prev.members ?? 0) + 1 } : prev));
+
+    // Show GIF animation for N loops (~3 loops). Adjust loopMs/playCount if desired.
+    const loopMs = 900;     // approximate duration of one GIF loop (tweak to match your GIF)
+    const playCount = 3;    // show ~3 loops
+    const totalMs = loopMs * playCount;
+
+    // clear previous timer (if any) then start new animation timer
+    if (joinAnimTimer.current) {
+      window.clearTimeout(joinAnimTimer.current);
+      joinAnimTimer.current = null;
+    }
+    // Start animation
+    // If you want to restart the GIF visually, briefly toggle false => true to restart browser playback:
+    setJoinedAnimate(false);
+    // slight delay ensures DOM updates and restarts GIF playback on re-render
+    setTimeout(() => setJoinedAnimate(true), 20);
+
+    joinAnimTimer.current = window.setTimeout(() => {
+      setJoinedAnimate(false);
+      joinAnimTimer.current = null;
+    }, totalMs);
+
     try {
       await groupApi.joinGroup(groupId);
     } catch (err: any) {
+      // rollback on error
       setIsMember(false);
       setGroup((prev) => (prev ? { ...prev, members: Math.max((prev.members ?? 1) - 1, 0) } : prev));
+
+      // stop the animation immediately on error
+      if (joinAnimTimer.current) {
+        window.clearTimeout(joinAnimTimer.current);
+        joinAnimTimer.current = null;
+      }
+      setJoinedAnimate(false);
+
       if (err?.message?.toLowerCase().includes("unauthorized")) {
         authApi.clearTokens?.();
         router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`);
@@ -267,6 +303,16 @@ export default function GroupDetailClient({
       console.error("join failed", err);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (joinAnimTimer.current) {
+        window.clearTimeout(joinAnimTimer.current);
+        joinAnimTimer.current = null;
+      }
+    };
+  }, []);
+
 
   const handleLeave = async () => {
     if (!currentUser) {
@@ -356,6 +402,8 @@ export default function GroupDetailClient({
     };
   }, []);
 
+  
+
   return (
     <>
       {/* success overlays (rendered above everything) */}
@@ -388,6 +436,7 @@ export default function GroupDetailClient({
                 onJoin={handleJoinAction}
                 onFollow={handleFollow}
                 isMember={Boolean(isMember)}
+                joinAnimation={joinedAnimate} 
                 variant="detail"
                 backIconSrc="/back.svg"
                 shareIconSrc="/share-1.svg"

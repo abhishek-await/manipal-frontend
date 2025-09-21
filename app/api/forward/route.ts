@@ -142,7 +142,7 @@ try {
     try {
       mergedHeaders["content-length"] = String(fd.getLengthSync());
     } catch (e) {
-      // ignore if length can't be determined sync
+      console.error(e)
     }
   }
 } catch (err) {
@@ -157,7 +157,7 @@ try {
 console.log("Forwarder: sending multipart with headers:", mergedHeaders);
 
 // send Buffer as body (fetch accepts Buffer)
-let backendRes = await forwardToBackend(path, method, mergedHeaders, bodyBuffer);
+const backendRes = await forwardToBackend(path, method, mergedHeaders, bodyBuffer);
 
 // (then run your existing refresh/retry logic if 401 and refresh token exists)
 

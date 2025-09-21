@@ -2,7 +2,7 @@
 import React from "react";
 import { cookies } from "next/headers";
 import CreatePostClient from "@/features/support_groups/CreatePostClient";
-import { API_BASE_URL } from "@/features/support_groups/api/group.api";
+// import { API_BASE_URL } from "@/features/support_groups/api/group.api";
 
 export default async function Page(props: PageProps<'/support-group/[id]/create-post'>) {
   const { id } = await props.params;

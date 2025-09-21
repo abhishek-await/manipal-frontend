@@ -276,7 +276,9 @@ export default function CommentClient({
       const created = await groupApi.postReply(postId, payload);
       const createdId = String(created.id ?? created.pk ?? created._id ?? Date.now());
 
-      // Replace temp with server object; keep display grouping stable to avoid visual jump.
+      // Replace temp with server object; use server parent_id when available.
+      // If backend returned created.parent_id, prefer it. Otherwise keep the UI grouping parent id.
+      const serverParentId = created.parent_id != null ? String(created.parent_id) : null;
       setReplies((prev) =>
         prev.map((it) =>
           it.id === tempId
@@ -285,8 +287,8 @@ export default function CommentClient({
                 content: created.content ?? content,
                 created_at: created.created_at ?? new Date().toISOString(),
                 user_name: created.user_name ?? created.user?.name ?? optimistic.user_name,
-                // For display we keep replyDisplayParentId (UI grouping); backend parent_id might be different
-                parentId: created.parent_id != null ? (replyDisplayParentId ?? String(created.parent_id)) : replyDisplayParentId,
+                // **** USE serverParentId when available; fallback to replyDisplayParentId ****
+                parentId: serverParentId ?? replyDisplayParentId,
                 replyingTo: optimistic.replyingTo ?? null,
               }
             : it
@@ -331,6 +333,7 @@ export default function CommentClient({
       setPosting(false);
     }
   };
+
 
   // like handler for the post (optimistic)
   const handleToggleLike = async () => {

@@ -228,7 +228,7 @@ export default function PostCard({
   return (
     // make the whole card focusable so keyboard users can trigger prefetch via focus
     <Card
-      className={`w-full border border-gray-200 rounded-xl shadow-sm ${className}`}
+      className={`w-full border border-gray-200 shadow-sm ${className}`}
       onPointerEnter={prefetchComments}
       onFocus={prefetchComments}
       tabIndex={0}

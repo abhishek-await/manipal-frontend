@@ -480,7 +480,7 @@ export default function GroupDetailClient({
                   isLiked={Boolean(p.isLiked)}
                   likeCount={p.likeCount ?? 0}
                   replyCount={p.replyCount ?? 0}
-                  className="w-full"
+                  className="w-full rounded-xl"
                 />
               </div>
             ))}
@@ -838,11 +838,11 @@ function SuccessOverlay({ image, onClose }: { image?: string | null; onClose?: (
         </motion.div>
 
         {/* optional image below the check */}
-        {image ? (
+        {/* {image ? (
           <div style={{ width: 220, maxHeight: 220, marginBottom: 16, borderRadius: 10, overflow: "hidden" }}>
             <img src={image} alt="shared" style={{ width: "100%", height: "auto", display: "block", objectFit: "cover" }} />
           </div>
-        ) : null}
+        ) : null} */}
 
         {/* message text */}
         <div
@@ -906,9 +906,9 @@ function SuccessToast({ image, onClose }: { image?: string | null, onClose?: () 
         </div>
 
         {/* optional thumbnail */}
-        {image ? (
+        {/* {image ? (
           <img src={image} alt="thumb" style={{ width: 44, height: 28, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
-        ) : null}
+        ) : null} */}
 
         {/* text — 12px regular */}
         <div style={{

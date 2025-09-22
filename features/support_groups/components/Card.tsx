@@ -5,7 +5,7 @@ import Image from "next/image";
 import clsx from "clsx";
 import { useEffect, useState, startTransition } from "react";
 import { useRouter } from "next/navigation";
-import MemberBadge from "./MemberBadge";
+// import MemberBadge from "./MemberBadge";
 
 type Avatar = { src: string; alt?: string };
 
@@ -106,6 +106,8 @@ export default function SupportGroupCard({
     timeAgo(updatedText)
   );
 
+  const [isNavigating, setIsNavigating] = useState(false);
+
   useEffect(() => {
     if (!updatedText) return;
     setFormattedUpdatedText(timeAgo(updatedText));
@@ -120,11 +122,37 @@ export default function SupportGroupCard({
   // BUT if href is provided parent is expected to wrap in Link and handle navigation.
   const navigateToGroup = () => {
     if (variant !== "compact") return;
-    if (href) return; // Link from parent will handle navigation & prefetch
-    // use startTransition to keep UI responsive
+    if (href) return; // Link from parent will handle navigation
+    
+    // Set navigating state
+    setIsNavigating(true);
+    
+    // Optional: Add haptic feedback for mobile devices
+    if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(10); // Very short vibration
+    }
+    
+    // Use startTransition to keep UI responsive
     startTransition(() => {
       router.push(`/group/${id}`);
     });
+  };
+
+   const handleCardClick = (e: React.MouseEvent) => {
+    if (variant !== "compact") return;
+    
+    // If wrapped in Link, just add visual feedback
+    if (href) {
+      setIsNavigating(true);
+      
+      // Optional haptic feedback
+      if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(10);
+      }
+    } else {
+      // If not wrapped in Link, handle navigation
+      navigateToGroup();
+    }
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -177,15 +205,34 @@ export default function SupportGroupCard({
     <article
       role={!href && variant === "compact" ? "button" : undefined}
       tabIndex={!href && variant === "compact" ? 0 : undefined}
-      onClick={navigateToGroup}
+      onClick={handleCardClick}
       onKeyDown={onKeyDown}
       className={clsx(
         variant === "compact"
-          ? "w-full rounded-[12px] border border-[#E5E7EB] bg-white p-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#16AF9F]"
+          ? `w-full rounded-[12px] border border-[#E5E7EB] bg-white p-4 cursor-pointer 
+             focus:outline-none focus:ring-2 focus:ring-[#16AF9F] 
+             transition-all duration-150 ease-out
+             ${isNavigating ? 'scale-[0.98] opacity-70' : 'hover:scale-[1.01] active:scale-[0.99]'}`
           : "w-full rounded-[12px] overflow-hidden bg-white shadow-sm",
         className
       )}
+      style={{
+        // Add subtle shadow when pressed
+        boxShadow: isNavigating && variant === "compact" 
+          ? '0 2px 8px rgba(0, 0, 0, 0.15)' 
+          : undefined,
+      }}
     >
+      {/* Add loading overlay for compact variant */}
+      {isNavigating && variant === "compact" && (
+        <div className="absolute inset-0 bg-white/50 rounded-[12px] z-20 flex items-center justify-center">
+          <div className="flex items-center gap-2">
+            {/* Simple loading spinner */}
+            {/* <div className="w-5 h-5 border-2 border-[#16AF9F] border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm text-[#16AF9F] font-medium">Loading...</span> */}
+          </div>
+        </div>
+      )}
       {isDetail ? (
         <div className="relative bg-gradient-to-b from-[#E8FBF8] to-transparent px-6 pt-6 pb-6">
           <div className="absolute inset-x-0 top-3 px-4 flex items-center justify-between z-20">
@@ -234,13 +281,13 @@ export default function SupportGroupCard({
                 <span className="text-sm text-[#54555A]">({fmt(reviews) ?? 0})</span>
               </div>
 
-              <div className="flex items-center text-[#54555A]">
+              {/* <div className="flex items-center text-[#54555A]">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <circle cx="12" cy="12" r="10"></circle>
                   <path d="M12 6v6l4 2"></path>
                 </svg>
                 <span className="ml-2 text-sm">{formattedUpdatedText}</span>
-              </div>
+              </div> */}
 
               <div className="flex -space-x-2 ml-2">
                 {shownAvatars.map((a, i) => (

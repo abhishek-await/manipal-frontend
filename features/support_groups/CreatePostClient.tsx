@@ -167,6 +167,7 @@ export default function CreatePostClient({
         if (newId) q.set("newPostId", String(newId));
         q.set("success", "1");
         if (imageUrl) q.set("successImage", imageUrl as string);
+        // Don't set loading to false - let redirect happen with "Posting..." still showing
         router.push(`/group/${groupId}?${q.toString()}`);
         return;
       }
@@ -175,6 +176,7 @@ export default function CreatePostClient({
         const q = new URLSearchParams();
         if (newId) q.set("newPostId", String(newId));
         q.set("pending", "1");
+        // Don't set loading to false - let redirect happen with "Posting..." still showing
         router.push(`/group/${groupId}?${q.toString()}`);
         return;
       }
@@ -183,6 +185,7 @@ export default function CreatePostClient({
         const reason = created?.moderation_reason ?? "Your post did not meet community guidelines. Please modify and try again.";
         setRejectionMessage(reason);
         window.scrollTo({ top: 0, behavior: "smooth" });
+        setLoading(false); // Only set to false on rejection
         return;
       }
 
@@ -190,20 +193,23 @@ export default function CreatePostClient({
       if (newId) q.set("newPostId", String(newId));
       q.set("success", "1");
       if (imageUrl) q.set("successImage", imageUrl as string);
+      // Don't set loading to false - let redirect happen with "Posting..." still showing
       router.push(`/group/${groupId}?${q.toString()}`);
     } catch (err: any) {
       console.error("Create post failed", err);
+      // Only set loading to false on error
+      setLoading(false);
+      
       if (err?.message?.toLowerCase().includes("unauthorized")) {
         authApi.clearTokens?.();
         router.push(`/login?next=${encodeURIComponent(`/support-groups/${groupId}/create-post`)}`);
         return;
       }
       alert("Failed to create post. Please try again.");
-    } finally {
-      setLoading(false);
     }
+    // Remove the finally block entirely
   };
-
+  
   const selectedCategories = categories.filter((c) => selectedTagIds.includes(c.id));
 
   // Helpers for mobile keyboard: on focus add padding so bottom bar doesn't overlap input
@@ -281,8 +287,9 @@ export default function CreatePostClient({
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Post title (optional)"
-              className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#16AF9F]"
+              placeholder="Post title"
+              disabled={loading} // Add this
+              className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#16AF9F] disabled:bg-gray-50 disabled:cursor-not-allowed"
             />
           </div>
 
@@ -293,9 +300,10 @@ export default function CreatePostClient({
               onChange={(e) => setContent(e.target.value)}
               placeholder="Share your thoughts..."
               rows={6}
+              disabled={loading} // Add this
               onFocus={onFocusTextarea}
               onBlur={onBlurTextarea}
-              className="w-full border border-[#E5E7EB] rounded-lg px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#16AF9F] min-h-[140px] resize-none"
+              className="w-full border border-[#E5E7EB] rounded-lg px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#16AF9F] min-h-[140px] resize-none disabled:bg-gray-50 disabled:cursor-not-allowed"
             />
           </div>
 
@@ -314,7 +322,8 @@ export default function CreatePostClient({
                 <button
                   onClick={() => removeFile(0)}
                   type="button"
-                  className="absolute top-2 right-2 bg-white rounded-full p-1 shadow"
+                  disabled={loading} // Add this
+                  className="absolute top-2 right-2 bg-white rounded-full p-1 shadow disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label="Remove"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -348,7 +357,8 @@ export default function CreatePostClient({
               <button
                 type="button"
                 onClick={() => setTagSheetOpen(true)}
-                className="text-sm text-[#6B7280] text-left w-full"
+                disabled={loading}
+                className="text-sm text-[#6B7280] text-left w-full disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {selectedCategories.length === 0 ? (
                   <>
@@ -375,7 +385,8 @@ export default function CreatePostClient({
             <button
               type="button"
               onClick={openFilePicker}
-              className="inline-flex items-center gap-8 px-3 rounded-lg  bg-white text-sm"
+              disabled={loading} // Add this
+              className="inline-flex items-center gap-8 px-3 rounded-lg bg-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Add media"
             >
               {/* two icons only — use your svg files in /public/icons */}

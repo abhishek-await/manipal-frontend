@@ -9,7 +9,6 @@ import { SupportGroupCardProps as Card } from "@/features/support_groups/compone
 import { useRouter } from "next/navigation";
 import { groupApi } from "./api/group.api";
 import { authApi } from "../auth/api/auth.api";
-import { startTransition } from "react";
 import Link from "next/link";
 
 import { LayoutGroup, motion, AnimatePresence } from "framer-motion";
@@ -37,7 +36,6 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
   // --- search / morph state ---
   const { isSearchOpen, openSearch, closeSearch, q, setQ } = useSearchStore();
 
-  // prepare a small trending list to feed the search UI when shown
   const initialTrending = useMemo(() => {
     if (!Array.isArray(initialGroups)) return [];
     return (initialGroups.slice().sort((a, b) => {
@@ -47,14 +45,6 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
     })).slice(0, 4) as Card[];
   }, [initialGroups]);
 
-  // const openSearch = () => setIsSearchOpen(true);
-  // const closeSearch = () => {
-  //   setQ("");              // clear immediately
-  //   // a tiny delay or rAF helps ensure input sees the value before morph starts
-  //   requestAnimationFrame(() => setIsSearchOpen(false));
-  // };
-
-  // --- keep your previous app state and handlers (unchanged) ---
   const [groups, setGroups] = useState<Card[]>(initialGroups ?? []);
   const [chipItems, setChipItems] = useState<ChipItem[]>(initialChipItems ?? []);
   const [stats, setStats] = useState<Stats | undefined>(initialStats);
@@ -80,6 +70,9 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [membershipMap, setMembershipMap] = useState<Record<string, boolean>>({});
   const pendingRef = React.useRef(new Set<string>());
+
+  // New: keep track of which group (by id) we're currently showing a loader for
+  const [navigatingGroupId, setNavigatingGroupId] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -111,7 +104,6 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
     });
   }, [displayedGroups]);
 
-  // join / leave (kept identical)
   const handleJoin = async (groupId: string) => {
     if (!currentUser) {
       router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`);
@@ -178,21 +170,14 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
     }
   };
 
-  // ---- layout/morph rendering ----
-  // Important: BOTH the home and the search view expose a motion.div with the SAME layoutId
-  // and the SAME measured box (we set className="w-full h-12" on both wrappers).
-  // The parent contains a single LayoutGroup that covers both states.
-
   return (
     <div className="min-h-screen w-full bg-white flex flex-col">
       <main className="w-full flex justify-center">
         <div className="w-full max-w-[420px] mx-auto px-4 sm:px-6">
           <LayoutGroup>
-            {/* Header/title area - when isSearchOpen === false we show home header, else show search header */}
-            <div className="pt-2">
+            <div className="pt-4">
               <AnimatePresence mode="wait">
                 {!isSearchOpen ? (
-                  // HOME header + searchbar (motion wrapper)
                   <motion.div
                     key="home-header"
                     initial={{ opacity: 0, y: 6 }}
@@ -217,21 +202,19 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
                     </div>
 
                     <div className="mt-12">
-                      {/* shared-layout wrapper: keep same measured box on both sides */}
                       <motion.div layoutId="search-bar" className="w-full h-12 relative">
                         <SearchBar
                           value={q}
                           onChange={setQ}
                           onSubmit={() => {}}
-                          onClick={openSearch} // open single-page search
+                          onClick={openSearch}
                           className="w-full h-full"
-                          navigateOnInteract={false} // do not route away
+                          navigateOnInteract={false}
                         />
                       </motion.div>
                     </div>
                   </motion.div>
                 ) : (
-                  // SEARCH header + searchbar (this is the target of the morph)
                   <motion.div
                     key="search-header"
                     initial={{ opacity: 0, y: 6 }}
@@ -239,7 +222,6 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.18 }}
                   >
-                    {/* compact back row */}
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
@@ -250,7 +232,6 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
                         <img src="/arrow-left.svg" alt="Back" className="h-6 w-6 object-contain" />
                       </button>
                       <div className="flex-1">
-                        {/* same layoutId wrapper with identical class - keeps measured box identical */}
                         <motion.div layoutId="search-bar" className="w-full h-12 relative">
                           <SearchBar
                             value={q}
@@ -270,8 +251,6 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
             </div>
           </LayoutGroup>
 
-          {/* MAIN PAGE BODY: we swap the main body content between "home content" and "search content"
-              but the search bar morph happens above because both expose the same layoutId wrapper. */}
           <div className="">
             <AnimatePresence mode="wait" onExitComplete={() => setQ("")}>
               {!isSearchOpen ? (
@@ -282,7 +261,6 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.16 }}
                 >
-                  {/* Home body: chips, groups list, CTA — unchanged from your original */}
                   <div>
                     <div className="mt-6">
                       <p className="text-sm text-[#54555A]">Find by condition</p>
@@ -317,17 +295,63 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
                         {displayedGroups.map((c) => {
                           const href = `/group/${c.id}`;
 
+                          const isNavigating = navigatingGroupId === c.id;
+
                           return (
                             <div key={c.id} className="w-full max-w-[360px] mx-auto">
-                              <Link href={href} prefetch={true} className="block w-full" onPointerEnter={() => { router.prefetch?.(href); }}>
-                                <SupportGroupCard
-                                  {...c}
-                                  href={href}
-                                  className="w-full"
-                                  isMember={Boolean(membershipMap[c.id] ?? (c as any).isMember)}
-                                  onJoin={() => handleJoin(c.id)}
-                                  onLeave={() => handleLeave(c.id)}
-                                />
+                              <Link
+                                href={href}
+                                prefetch={true}
+                                className="block w-full"
+                                onPointerEnter={() => { router.prefetch?.(href); }}
+                                onClick={(e) => {
+                                  // intercept navigation to show spinner first
+                                  e.preventDefault();
+
+                                  // set which group is navigating
+                                  setNavigatingGroupId(c.id);
+
+                                  // optional haptic feedback
+                                  if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+                                    try { navigator.vibrate(10); } catch {}
+
+                                  }
+
+                                  // allow one paint/frame for the spinner to appear, then navigate
+                                  if (typeof window !== "undefined" && "requestAnimationFrame" in window) {
+                                    window.requestAnimationFrame(() => {
+                                      router.push(href);
+                                    });
+                                  } else {
+                                    // fallback microtask
+                                    setTimeout(() => router.push(href), 0);
+                                  }
+
+                                  // safety: clear spinner after a short timeout if navigation fails
+                                  setTimeout(() => {
+                                    setNavigatingGroupId((cur) => (cur === c.id ? null : cur));
+                                  }, 1500);
+                                }}
+                              >
+                                <div className={`relative transition-all duration-150 ${isNavigating ? 'scale-[0.98] opacity-70' : ''}`}>
+                                  <SupportGroupCard
+                                    {...c}
+                                    href={href}
+                                    className="w-full"
+                                    isMember={Boolean(membershipMap[c.id] ?? (c as any).isMember)}
+                                    onJoin={() => handleJoin(c.id)}
+                                    onLeave={() => handleLeave(c.id)}
+                                  />
+
+                                  {/* Loading overlay: made to match PostCard spinner */}
+                                  {isNavigating && (
+                                    <div className="absolute inset-0 bg-white/60 rounded-[12px] z-20 flex items-center justify-center pointer-events-none">
+                                      <div className="rounded-full bg-white/80 p-2 shadow flex items-center justify-center">
+                                        <Spinner />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               </Link>
                             </div>
                           );
@@ -369,7 +393,6 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
                   </div>
                 </motion.div>
               ) : (
-                // SEARCH body (no searchbar here — the shared searchbar above is the one that morphed)
                 <motion.div
                   key="search-body"
                   initial={{ opacity: 0 }}
@@ -377,7 +400,6 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.16 }}
                 >
-                  {/* Render SearchPageClient but tell it to hide its builtin search bar since parent owns it */}
                   <SearchPageClient
                     initialTrending={initialTrending}
                     initialCurrentUser={null}
@@ -396,6 +418,21 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
   );
 }
 
+// Spinner used in overlays (matches PostCard spinner style)
+function Spinner() {
+  return (
+    <svg
+      className="animate-spin h-6 w-6"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" strokeWidth="3" strokeOpacity="0.25" />
+      <path d="M22 12a10 10 0 0 1-10 10" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 // StatTile unchanged
 export function StatTile({

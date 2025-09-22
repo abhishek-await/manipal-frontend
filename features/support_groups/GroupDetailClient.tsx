@@ -418,7 +418,7 @@ export default function GroupDetailClient({
   };
 
   const openShareForPost = (p: { id: string; title?: string; excerpt?: string; tag?: string[] }) => {
-    const path = `/support-group/${groupId}/post/${p.id}`;
+    const path = `/support-group/${p.id}/comment`;
     setShareData({
       title: p.title ?? "Post from Group",
       excerpt: p.excerpt,

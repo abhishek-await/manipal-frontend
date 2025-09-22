@@ -338,13 +338,13 @@ ${url}`);
                 <div className="text-[14px] font-semibold text-[#111827] line-clamp-2">{title}</div>
                 {excerpt ? <div className="mt-1 text-[13px] text-[#4B5563] line-clamp-2">{excerpt}</div> : null}
 
-                {tags?.length ? (
+                {/* {tags?.length ? (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {tags.slice(0, 2).map((t, i) => (
                       <span key={`${t}-${i}`} className="inline-block rounded-full bg-[#F3F4F6] px-3 py-1 text-[11px] text-[#111827]">{t}</span>
                     ))}
                   </div>
-                ) : null}
+                ) : null} */}
 
                 <div className="mt-3 border-t pt-2 flex items-center gap-2">
                   <Image src={sourceLogo} alt="source" width={28} height={28} className="rounded" />

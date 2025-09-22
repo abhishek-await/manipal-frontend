@@ -26,7 +26,8 @@ function isAllowedPath(path: string) {
 
 async function forwardToBackend(path: string, method: string, headers: Record<string, string>, body?: any) {
   const url = `${path}`;
-  console.log("URL: ", url);
+  // console.log("URL: ", url);
+  // console.log("headers: ", headers)
   return await fetch(url, {
     method,
     headers,
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
   const path = typeof payload.path === "string" ? payload.path : "/";
   const method = (payload.method || "GET").toUpperCase();
 
-  console.log("forward payload.body:", JSON.stringify(payload.body, null, 2));
+  // console.log("forward payload.body:", JSON.stringify(payload.body, null, 2));
 
   if (!isAllowedPath(path)) {
     return NextResponse.json({ message: "disallowed path" }, { status: 400 });
@@ -207,7 +208,7 @@ const backendRes = await forwardToBackend(path, method, mergedHeaders, bodyBuffe
             httpOnly: true,
             sameSite: "lax",
             path: "/",
-            maxAge: 60 * 15, // 15m, adjust to your token lifetime
+            maxAge: 60 * 60 * 24, // 15m, adjust to your token lifetime
             secure: isProd,
           });
         }
@@ -218,7 +219,7 @@ const backendRes = await forwardToBackend(path, method, mergedHeaders, bodyBuffe
             httpOnly: true,
             sameSite: "lax",
             path: "/",
-            maxAge: 60 * 60 * 24 * 30,
+            maxAge: 60 * 60 * 24 * 10,
             secure: isProd,
           });
         }

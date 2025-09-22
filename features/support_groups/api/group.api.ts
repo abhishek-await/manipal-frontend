@@ -5,7 +5,7 @@ export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export const groupApi = {
   getGroups: async (access: string) => {
-    console.log("Access: ", access)
+    // console.log("Access: ", access)
     const response = await fetch(`${API_BASE_URL}/support-groups/groups/`,{
         method: "GET",
         headers: {
@@ -182,7 +182,7 @@ export const groupApi = {
   ) => {
     const url = `${API_BASE_URL}/support-groups/posts/${groupId}/post/`;
 
-    console.log("[CreatePost] Data: ", data)
+    // console.log("[CreatePost] Data: ", data)
 
     // Always send as multipart/form-data per your swagger UI
     const fd = new FormData();
@@ -210,7 +210,7 @@ export const groupApi = {
       });
     }
 
-    console.log("[CreatePost] Form Data: ", fd)
+    // console.log("[CreatePost] Form Data: ", fd)
 
     const res = await authApi.fetchWithAuth(url, {
       method: "POST",
@@ -255,7 +255,7 @@ export const groupApi = {
   },
 
   postReply: async (postId: string, data: {content: string, parent_id?: number}) => {
-    console.log("Body: ", JSON.stringify(data))
+    // console.log("Body: ", JSON.stringify(data))
     const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/posts/${postId}/reply/`,{
       method: "POST",
       headers: { 'Content-Type': 'application/json'},
@@ -268,13 +268,14 @@ export const groupApi = {
     }
 
 
-    console.log("Response: ", res)
+    // console.log("Response: ", res)
 
     return res.json()
 
   },
   
   getPosts: async (groupId: string) => {
+    // console.log("Get post called")
     const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/groups/${groupId}/posts`,{
       method: "GET",
       headers: { 'Content-Type': 'application/json'},

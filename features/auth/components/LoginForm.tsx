@@ -69,7 +69,7 @@ export default function LoginForm() {
       try {
         // if your backend expects +91 prefix, add it here: `+91${normalized}`
         const response = await authApi.sendOTP(normalized, methodArg ?? method);
-        console.log("Response from handleSendOTP: ", response);
+        // console.log("Response from handleSendOTP: ", response);
         setPhone(normalized); // keep normalized number in input
         setStep("otp");
         startTimer(29);
@@ -87,7 +87,7 @@ export default function LoginForm() {
       otpRefs.current[0]?.focus();
       try {
         const response = await authApi.sendOTP(normalizedPhone, method);
-        console.log(response?.message ?? "resent");
+        // console.log(response?.message ?? "resent");
         setStep("otp");
         startTimer(29);
       } catch (error) {
@@ -117,7 +117,7 @@ export default function LoginForm() {
     if (currentOtp.join("").length !== 4) return;
     try {
       const response = await authApi.verifyOTP(normalizedPhone, currentOtp);
-      console.log("Response from handleOtpSubmit: ", response);
+      // console.log("Response from handleOtpSubmit: ", response);
       if (!response.user_exists) {
         setStep("mobile");
       } else {

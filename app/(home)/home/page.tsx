@@ -1,8 +1,15 @@
-// app/support-groups/page.tsx
+// pages.forwarded.bulk.tsx
+// This single file contains three updated server page implementations that use the internal
+// /api/forward route so backend sees cookies and refresh logic. Copy each section into the
+// corresponding file in your app (or import a shared forwarder helper).
+
+/* -------------------------------------------------------------------------- */
+/* app/support-groups/page.tsx (forwarded)                                      */
+/* -------------------------------------------------------------------------- */
+
 export const dynamic = "force-dynamic";
 
 import SupportGroupsClient from '@/features/support_groups/SupportGroupsClient'
-import { groupApi } from '@/features/support_groups/api/group.api'
 import { SupportGroupCardProps as Card } from '@/features/support_groups/components/Card'
 import { cookies } from 'next/headers';
 
@@ -13,23 +20,6 @@ type Stats = {
   totalExperts: number
   totalDiscussions: number
 }
-
-// async function fetchRawGroupsIfNeeded(sample: any[] | undefined) {
-//   // if sample appears to contain category info, return undefined (no extra fetch)
-//   if (Array.isArray(sample) && sample.length > 0 && sample[0].category) return undefined
-
-//   const API_BASE = process.env.NEXT_PUBLIC_API_URL
-//   if (!API_BASE) return undefined
-
-//   try {
-//     const res = await fetch(`${API_BASE}/support-groups/groups`, { cache: 'no-store' })
-//     if (!res.ok) return undefined
-//     return await res.json()
-//   } catch (e) {
-//     // swallow — we'll render without categories if fetch fails
-//     return undefined
-//   }
-// }
 
 function buildChipItemsFromGroups(groups: Card[]): ChipItem[] {
   const map = new Map<string, ChipItem>()
@@ -59,29 +49,72 @@ function buildStatsFromGroups(groups: Card[]): Stats {
   return { totalGroups, totalPatients, totalExperts, totalDiscussions }
 }
 
+// map raw backend group object -> Card shape used by UI
+function mapToCard(g: any): Card {
+  return {
+    id: g.id,
+    title: g.title,
+    description: g.description,
+    imageSrc: g.image_url ?? '/images/group-thumb.png',
+    rating: Number(g.rating),
+    updatedText: g.updated_at,
+    members: g.total_members,
+    experts: g.total_experts,
+    avatars: [
+      { src: '/avatars/omar.png', alt: 'Omar Darboe' },
+      { src: '/avatars/fran.png', alt: 'Fran Perez' },
+      { src: '/avatars/jane.png', alt: 'Jane Rotanson' },
+    ],
+    category: { id: g.category?.id ?? null, name: g.category?.name ?? 'Uncategorized' } as any,
+    totalPosts: g.total_posts,
+    growthPercentage: g.growth_percentage,
+    isMember: g.is_member,
+  }
+}
+
 export default async function Page() {
-  // Use your API helper (no modifications to it)
   const cookieStore = await cookies()
-  const access = cookieStore.get('accessToken')?.value ?? ""
-  const apiGroups = await groupApi.getGroups(access) // <-- your function used here
+  const cookieHeader = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? process.env.BACKEND_URL ?? ''
+  const serverBase = process.env.NEXT_SERVER_URL ?? `http://localhost:3000`;
 
-  // If apiGroups already include category, use them directly for chips/stats.
-  // Otherwise fetch raw objects from backend only for building chips/stats.
-  // const rawFallback = await fetchRawGroupsIfNeeded(apiGroups)
-  const sourceForAgg = apiGroups
-
-  const chipItems = Array.isArray(sourceForAgg) ? buildChipItemsFromGroups(sourceForAgg) : []
-  const stats = Array.isArray(sourceForAgg) ? buildStatsFromGroups(sourceForAgg) : {
-    totalGroups: Array.isArray(apiGroups) ? apiGroups.length : 0,
-    totalPatients: 0,
-    totalExperts: 0,
-    totalDiscussions: 0,
+  async function forwardFetchJson(path: string, method = 'GET') {
+    try {
+      const payload = { path, method }
+      const res = await fetch(`${serverBase}/api/forward`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(cookieHeader ? { cookie: cookieHeader } : {}),
+        },
+        body: JSON.stringify(payload),
+        cache: 'no-store',
+      })
+      if (!res.ok) return null
+      return await res.json().catch(() => null)
+    } catch (e) {
+      console.error('forwardFetchJson error', e)
+      return null
+    }
   }
 
-  console.log("Groups: ", apiGroups)
-  // Pass server-computed values down to the client component
+  // try fetching groups via forwarder so backend can personalize (is_member, etc.)
+  let rawGroups: any[] | null = null
+  try {
+    rawGroups = await forwardFetchJson(`${API_BASE}/support-groups/groups/`, 'GET')
+  } catch (e) {
+    console.warn('Could not fetch groups via forwarder', e)
+    rawGroups = null
+  }
+
+  // fallback: empty array
+  const groupsRaw = Array.isArray(rawGroups) ? rawGroups : []
+  const apiGroups = groupsRaw.map(mapToCard)
+
+  const chipItems = apiGroups.length ? buildChipItemsFromGroups(apiGroups) : []
+  const stats = apiGroups.length ? buildStatsFromGroups(apiGroups) : { totalGroups: apiGroups.length, totalPatients: 0, totalExperts: 0, totalDiscussions: 0 }
+
   return (
-    // SupportGroupsClient should accept these props (initialGroups, initialChipItems, initialStats)
     <SupportGroupsClient
       initialGroups={apiGroups as Card[]}
       initialChipItems={chipItems}

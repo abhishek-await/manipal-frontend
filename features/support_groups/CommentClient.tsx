@@ -39,6 +39,8 @@ export default function CommentClient({
   initialCurrentUser?: any | null;
   postId: string;
 }) {
+
+  // console.log("Initial Post: ", initialPost)
   const router = useRouter();
 
   // normalize server-provided replies: ensure ids and parentIds are strings (or null)

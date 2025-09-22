@@ -127,7 +127,7 @@ export const authApi = {
     const { refresh } = authApi.getTokens()
     if (!refresh) return null
 
-    console.log(JSON.stringify({refresh}))
+    // console.log(JSON.stringify({refresh}))
 
     try {
       const res = await fetch(`${API_BASE_URL}/auth/token/refresh/`, {
@@ -168,6 +168,7 @@ export const authApi = {
 
   // Wrapper: send a forward request to our server-side forwarder
   fetchWithAuth: async (path: string, opts: RequestInit = {}) => {
+    // console.log("Fetch with auth and path: ", path)
     const payload: any = {
       path,
       method: opts.method || "GET",
@@ -264,7 +265,7 @@ export const authApi = {
       payload.body = bodyShape;
 
       // Send JSON payload to forwarder (UNCHANGED auth behavior)
-      const res = await fetch("/api/forward", {
+      const res = await fetch(`/api/forward`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

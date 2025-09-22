@@ -26,7 +26,7 @@ export default function GroupDetailClient({
   groupId: string;
 }) {
 
-  console.log(initialPosts)
+  // console.log(initialPosts)
   const router = useRouter();
   const [group, setGroup] = useState<SupportGroupCardProps | null>(initialGroup);
   const [posts, setPosts] = useState<Post[]>(initialPosts ?? []);
@@ -443,6 +443,123 @@ export default function GroupDetailClient({
     setShareOpen(true);
   };
 
+  // inside GroupDetailClient, after your state hooks (e.g., after const [posts, setPosts] = useState...)
+  /** Controlled like handler factory — parent-controlled optimistic update */
+  const handleToggleLikeForPost = (postId: string) => {
+    return async () => {
+      const prevPost = posts.find((p) => String(p.id) === String(postId));
+      if (!prevPost) return;
+
+      const prevLiked = Boolean(prevPost.isLiked);
+      const prevCount = Number(prevPost.likeCount ?? 0);
+
+      const nextLiked = !prevLiked;
+      const nextCount = Math.max(0, prevCount + (nextLiked ? 1 : -1));
+
+      // Optimistic update
+      setPosts((ps) =>
+        ps.map((p) => 
+          String(p.id) === String(postId) 
+            ? { ...p, isLiked: nextLiked, likeCount: nextCount } 
+            : p
+        )
+      );
+
+      try {
+        const response = await groupApi.likePost(String(postId));
+        
+        // Update with server response
+        if (response && typeof response === 'object') {
+          setPosts((ps) =>
+            ps.map((p) => 
+              String(p.id) === String(postId) 
+                ? { 
+                    ...p, 
+                    isLiked: Boolean(response.liked ?? nextLiked),
+                    likeCount: Number(response.like_count ?? nextCount)
+                  }
+                : p
+            )
+          );
+        }
+      } catch (err) {
+        console.error("like api failed, rolling back", err);
+        // Rollback
+        setPosts((ps) =>
+          ps.map((p) => 
+            String(p.id) === String(postId) 
+              ? { ...p, isLiked: prevLiked, likeCount: prevCount } 
+              : p
+          )
+        );
+      }
+    };
+  };
+
+  // Replace the existing navigation effect with this enhanced version:
+
+  useEffect(() => {
+    let mounted = true;
+    
+    const refreshPosts = async () => {
+      if (!mounted || !currentUser) return;
+      
+      try {
+        const json = await groupApi.getPosts(groupId);
+        if (!mounted) return;
+        
+        const fresh = json.map((p: any) => ({
+          id: String(p.id),
+          avatar: p.avatar_url ?? "/avatars/omar.png",
+          name: p.full_name ?? "Unknown",
+          time: p.created_at ?? "2 hours ago",
+          title: p.title ?? "Post",
+          excerpt: p.content ?? "",
+          tag: p.tag ?? "General",
+          isLiked: Boolean(p.is_liked_by_user), // Ensure boolean
+          likeCount: p.like_count ?? 0,
+          replyCount: p.reply_count ?? 0,
+          attachments: p.attachments ?? [],
+        }));
+        
+        setPosts(fresh);
+      } catch (err) {
+        console.warn("Could not refresh posts", err);
+      }
+    };
+
+    // Initial load
+    refreshPosts();
+
+    // Handle various navigation events
+    const handleFocus = () => refreshPosts();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshPosts();
+      }
+    };
+
+    // Listen for custom events that might indicate a need to refresh
+    const handleCustomRefresh = () => refreshPosts();
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('pageshow', handleFocus); // For Safari
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('popstate', handleFocus);
+    
+    // Custom event for manual refresh triggers
+    window.addEventListener('mcc:refresh-posts', handleCustomRefresh);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('pageshow', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('popstate', handleFocus);
+      window.removeEventListener('mcc:refresh-posts', handleCustomRefresh);
+    };
+  }, [currentUser, groupId]);
+
   return (
     <>
       {/* success overlays (rendered above everything) */}
@@ -569,10 +686,7 @@ export default function GroupDetailClient({
                   likeCount={p.likeCount ?? 0}
                   replyCount={p.replyCount ?? 0}
                   className="w-full rounded-xl"
-                  onToggleLike={() => {
-                    // if you want parent to control like state, implement
-                    return updatePostLikeState(p.id, !p.isLiked, (p.likeCount ?? 0) + (p.isLiked ? -1 : 1));
-                  }}
+                  onToggleLike={handleToggleLikeForPost(p.id)}
                   onShare={(postPayload) => openShareForPost(postPayload)}
                   attachments={p.attachments ?? []}
                 />

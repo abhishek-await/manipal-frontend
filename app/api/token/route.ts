@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   const { access, refresh } = await req.json();
   if (!access || !refresh) return NextResponse.json({ message: "missing tokens" }, { status: 400 });
 
-  console.log(`[Token API] access: ${access}, refresh: ${refresh}`)
+  // console.log(`[Token API] access: ${access}, refresh: ${refresh}`)
 
   try {
     const c = await cookies();

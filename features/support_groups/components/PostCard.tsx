@@ -52,29 +52,27 @@ export default function PostCard({
   attachments,
 }: PostCardProps) {
   const router = useRouter();
-
-  // ======= REPLACE these state declarations (near top of component) =======
-  const [likedLocal, setLikedLocal] = useState<boolean>(!!isLikedProp && isLikedProp);
   const [pending, setPending] = useState(false);
-  const [likeCountLocal, setLikeCountLocal] = useState<number>(likeCountProp ?? 0);
-
-  // Add optimistic state for controlled-mode so we can show immediate feedback
-  const [optimisticLiked, setOptimisticLiked] = useState<boolean | null>(null);
-  const [optimisticLikeCount, setOptimisticLikeCount] = useState<number | null>(null);
-
-  // ======= REPLACE computation of displayed values =======
-  // (instead of the old isLikedDisplay / likeCountDisplay lines)
+  
+  // Only use local state if NOT controlled
   const isControlledLike = typeof onToggleLike === "function";
-  const isLikedDisplay = isControlledLike ? (optimisticLiked ?? !!isLikedProp) : likedLocal;
-  const likeCountDisplay = isControlledLike ? (optimisticLikeCount ?? (likeCountProp ?? 0)) : likeCountLocal;
-  // replyCountDisplay remains the same
+  const [likedLocal, setLikedLocal] = useState<boolean>(!isControlledLike && !!isLikedProp);
+  const [likeCountLocal, setLikeCountLocal] = useState<number>(!isControlledLike ? (likeCountProp ?? 0) : 0);
+  
+  // Reply count local state
   const [replyCountLocal, setReplyCountLocal] = useState<number>(replyCountProp ?? 0);
 
-  const replyCountDisplay = typeof replyCountProp === "number" ? replyCountProp : replyCountLocal;
+  // For display, use props if controlled, local state if not
+  const isLikedDisplay = isControlledLike ? !!isLikedProp : likedLocal;
+  const likeCountDisplay = isControlledLike ? (likeCountProp ?? 0) : likeCountLocal;
 
-
-  // Reply count local state (self-managed like likes)
-  // keep local states in sync if props change
+  // Update local state only when NOT controlled
+  useEffect(() => {
+    if (!isControlledLike) {
+      setLikedLocal(!!isLikedProp);
+      setLikeCountLocal(likeCountProp ?? 0);
+    }
+  }, [isLikedProp, likeCountProp, isControlledLike]);
   useEffect(() => {
     setLikeCountLocal(likeCountProp ?? 0);
   }, [likeCountProp]);
@@ -83,20 +81,16 @@ export default function PostCard({
     setReplyCountLocal(replyCountProp ?? 0);
   }, [replyCountProp]);
 
-  // // If parent passes controlled handler for like, treat like as controlled
+  // If parent passes controlled handler for like, treat like as controlled
   // const isControlledLike = typeof onToggleLike === "function";
   // const isLikedDisplay = isControlledLike ? !!isLikedProp : likedLocal;
   // const likeCountDisplay = isControlledLike ? (likeCountProp ?? 0) : likeCountLocal;
 
-  // // For reply count display: parent controls if replyCountProp is provided (not undefined).
-  // // Otherwise we display and manage replyCountLocal.
-  // const replyCountDisplay = typeof replyCountProp === "number" ? replyCountProp : replyCountLocal;
+  // For reply count display: parent controls if replyCountProp is provided (not undefined).
+  // Otherwise we display and manage replyCountLocal.
+  const replyCountDisplay = typeof replyCountProp === "number" ? replyCountProp : replyCountLocal;
 
   // legacy internal like handler (only used when parent doesn't provide onToggleLike)
-  
-  // ======= REPLACE handleLikeInternal + handleLike with these implementations =======
-
-  /** Internal (self-managed) optimistic like */
   const handleLikeInternal = async () => {
     if (pending) return;
 
@@ -106,75 +100,49 @@ export default function PostCard({
       return;
     }
 
-    // snapshot previous values so we can rollback if needed
-    const prevLiked = likedLocal;
-    const prevCount = likeCountLocal;
-
-    // optimistic update: flip liked and adjust count immediately
-    const newLiked = !prevLiked;
-    setLikedLocal(newLiked);
-    setLikeCountLocal(newLiked ? prevCount + 1 : Math.max(prevCount - 1, 0));
+    setLikedLocal((l) => !l);
     setPending(true);
+
+    // optimistic like count change
+    setLikeCountLocal((c) => (likedLocal ? Math.max(c - 1, 0) : c + 1));
 
     try {
       await groupApi.likePost(String(id));
-      // success -> nothing else required; state already reflects server intent
     } catch (err) {
-      console.error("like failed", err);
       // rollback
-      setLikedLocal(prevLiked);
-      setLikeCountLocal(prevCount);
+      console.error("like failed", err);
+      setLikedLocal(false);
+      setLikeCountLocal((c) => (c > 0 ? c - 1 : 0));
     } finally {
       setPending(false);
     }
   };
 
-  /** Public handler (supports controlled parent handler too) */
+  // when parent wants to control the like action, call onToggleLike and let parent update props
   const handleLike = async () => {
     if (pending) return;
 
-    // quick auth check
-    const current = await authApi.getCurrentUser().catch(() => null);
-    if (!current) {
-      router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
-      return;
-    }
-
     if (isControlledLike) {
-      // Controlled by parent: create a local optimistic overlay while we wait for parent to update
-      const prevLiked = !!isLikedProp;
-      const prevCount = likeCountProp ?? 0;
-      const newLiked = !(optimisticLiked ?? prevLiked);
-      const newCount = newLiked ? prevCount + 1 : Math.max(prevCount - 1, 0);
-
-      setOptimisticLiked(newLiked);
-      setOptimisticLikeCount(newCount);
+      // quick auth check
+      const current = await authApi.getCurrentUser().catch(() => null);
+      if (!current) {
+        router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+        return;
+      }
       setPending(true);
-
       try {
-        // ask parent to toggle; parent is expected to eventually update props
         await onToggleLike!();
-
-        // after parent handler resolves, clear optimistic overlay and let props drive UI.
-        // If parent updated props as expected, UI will show the correct final state.
-        setOptimisticLiked(null);
-        setOptimisticLikeCount(null);
       } catch (err) {
         console.error("parent like handler failed", err);
-        // rollback optimistic overlay
-        setOptimisticLiked(null);
-        setOptimisticLikeCount(null);
       } finally {
         setPending(false);
       }
-
       return;
     }
 
-    // fallback to internal optimistic handler
+    // fallback to internal handler
     return handleLikeInternal();
   };
-
 
   // When user clicks reply we notify parent (optional) and navigate to comment page.
   // Parent can use onReplyNavigate to increment replyCountLocal or trigger refresh.
@@ -325,13 +293,13 @@ export default function PostCard({
 
 
             {/* Tag + small stats row */}
-            <div className="mt-3 flex items-center gap-3">
+            {/* <div className="mt-3 flex items-center gap-3">
               {tag?.map((t) => (
                 <span key={t} className="inline-block bg-[#7750A3] text-white text-[11px] px-3 py-1 rounded-full">
                   {t}
                 </span>
               ))}
-            </div>
+            </div> */}
           </div>
         </div>
 

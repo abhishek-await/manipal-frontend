@@ -76,10 +76,11 @@ export default async function Page(props: PageProps<'/group/[id]'>) {
           time: p.created_at ?? "2 hours ago",
           title: p.title ?? "Post",
           excerpt: p.content ?? "",
-          tag: p.tag ?? (rawGroup?.category?.name ?? "General"),
+          tag: p.category ?? (rawGroup?.category?.name ?? "General"),
           isLiked: p.is_liked_by_user,
           likeCount: p.like_count ?? 0,
           replyCount: p.reply_count ?? 0,
+          attachments: p.attachments ?? [],
         }));
       }
     } else {

@@ -33,6 +33,7 @@ export default function CommentClient({
     is_liked_by_user?: boolean;
     avatar_url?: string;
     reply_count?: number;
+    attachments?: string[];
   } | null;
   initialReplies: FlatReply[];
   initialCurrentUser?: any | null;
@@ -411,6 +412,7 @@ export default function CommentClient({
           replyCount={replyCount}
           onToggleLike={handleToggleLike}
           className="rounded-none"
+          attachments={initialPost?.attachments}
         />
       </div>
 

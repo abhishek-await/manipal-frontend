@@ -299,13 +299,13 @@ export const groupApi = {
       throw new Error("Error fetching post categories")
     }
 
-    const dummyData = [{
-      id: 0,
-      name: "Medication",
-      description: "Discussions on prescribed medicines, therapies or treatments"
-    }]
+    // const dummyData = [{
+    //   id: 0,
+    //   name: "Medication",
+    //   description: "Discussions on prescribed medicines, therapies or treatments"
+    // }]
 
-    return dummyData
+    return res.json()
 
   }
 };

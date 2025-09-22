@@ -37,7 +37,7 @@ export default function CreatePostClient({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // previews
-  const [previews, setPreviews] = useState<string[]>([]);
+  const [preview, setPreview] = useState<string | null>(null);
 
   // rejection
   const [rejectionMessage, setRejectionMessage] = useState<string | null>(null);
@@ -86,19 +86,19 @@ export default function CreatePostClient({
 
   // previews
   useEffect(() => {
-    const old = previews.slice();
-    const urls = files.map((f) => URL.createObjectURL(f));
-    setPreviews(urls);
+    const f = files[0];
+    if (!f) {
+      setPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(f);
+    setPreview(url);
     return () => {
-      urls.forEach((u) => URL.revokeObjectURL(u));
-      old.forEach((u) => {
-        try {
-          URL.revokeObjectURL(u);
-        } catch {}
-      });
+      try {
+        URL.revokeObjectURL(url);
+      } catch {}
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [files.length]);
+  }, [files]);
 
   const handleBack = () => router.back();
 
@@ -107,18 +107,15 @@ export default function CreatePostClient({
   const onFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const fl = e.target.files;
     if (!fl || fl.length === 0) return;
-    const list = Array.from(fl).slice(0, 4); // limit to 4
-    setFiles((prev) => {
-      // allow adding to existing but keep max 4
-      const combined = prev.concat(list).slice(0, 4);
-      return combined;
-    });
+    // pick only first file
+    const first = fl[0];
+    setFiles([first]);
     // reset input value so same file can be reselected later
     e.currentTarget.value = "";
   };
 
   const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
+    setFiles([]); 
   };
 
   const toggleTag = (id: number) => {
@@ -303,43 +300,37 @@ export default function CreatePostClient({
           </div>
 
           {/* thumbnails */}
-          {previews.length > 0 && (
-            <div className="grid grid-cols-3 gap-2">
-              {previews.map((p, idx) => {
-                const f = files[idx];
-                const isVideo = f?.type?.startsWith?.("video");
-                return (
-                  <div key={p} className="relative rounded-lg overflow-hidden border border-[#E5E7EB] bg-[#F8FAFB]">
-                    {isVideo ? (
-                      <video src={p} className="w-full h-24 object-cover" />
-                    ) : (
-                      <img src={p} alt={`media-${idx}`} className="w-full h-24 object-cover block" />
-                    )}
+          {preview && (
+            <div className="mt-3">
+              <div className="relative rounded-lg overflow-hidden border border-[#E5E7EB] bg-[#F8FAFB]">
+                {/* basic video/image branching */}
+                {files[0]?.type?.startsWith?.("video") ? (
+                  <video src={preview} className="w-full h-52 object-cover" controls />
+                ) : (
+                  // use <img> to avoid Next/Image URL restrictions for object URLs; switch to next/image if you resolve external host issues
+                  <img src={preview} alt="attachment preview" className="w-full h-52 object-cover block" />
+                )}
 
-                    <button
-                      onClick={() => removeFile(idx)}
-                      type="button"
-                      className="absolute top-2 right-2 bg-white rounded-full p-1 shadow"
-                      aria-label="Remove"
-                    >
-                      {/* keep simple X here; you can replace with Image('/icons/close.svg') if you have it */}
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-                        <path d="M6 6l12 12M6 18L18 6" stroke="#111827" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </button>
+                <button
+                  onClick={() => removeFile(0)}
+                  type="button"
+                  className="absolute top-2 right-2 bg-white rounded-full p-1 shadow"
+                  aria-label="Remove"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path d="M6 6l12 12M6 18L18 6" stroke="#111827" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
 
-                    {isVideo && (
-                      <div className="absolute left-2 bottom-2 bg-black/50 text-white rounded-md px-2 py-0.5 text-xs flex items-center gap-1">
-                        {/* you can replace this with Image('/icons/play.svg') if desired */}
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
-                          <path d="M5 3v18l15-9L5 3z" fill="white" />
-                        </svg>
-                        <span className="text-xs">Video</span>
-                      </div>
-                    )}
+                {files[0]?.type?.startsWith?.("video") && (
+                  <div className="absolute left-2 bottom-2 bg-black/50 text-white rounded-md px-2 py-0.5 text-xs flex items-center gap-1">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <path d="M5 3v18l15-9L5 3z" fill="white" />
+                    </svg>
+                    <span className="text-xs">Video</span>
                   </div>
-                );
-              })}
+                )}
+              </div>
             </div>
           )}
 
@@ -425,8 +416,8 @@ export default function CreatePostClient({
                       <div className="flex items-center">
                         <label className="relative inline-flex items-center cursor-pointer">
                           <input type="checkbox" checked={checked} onChange={() => toggleTag(c.id)} className="sr-only" />
-                          <span className={`w-10 h-6 flex items-center bg-gray-200 rounded-full p-1 transition ${checked ? "bg-[#16AF9F]" : ""}`} aria-hidden>
-                            <span className={`bg-white w-4 h-4 rounded-full shadow transform transition ${checked ? "translate-x-4" : ""}`} />
+                          <span className={`w-10 h-6 flex items-center rounded-full p-1 transition ${checked ? "bg-[#8D8E91]" : "bg-[#E2E3E3]"}`} aria-hidden>
+                            <span className={`${checked ? "bg-[#FFFFFF]" : "bg-[#8D8E91]"} w-4 h-4 rounded-full shadow transform transition ${checked ? "translate-x-4" : ""}`} />
                           </span>
                         </label>
                       </div>

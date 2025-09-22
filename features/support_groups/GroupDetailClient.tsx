@@ -25,6 +25,8 @@ export default function GroupDetailClient({
   initialIsMember: boolean;
   groupId: string;
 }) {
+
+  console.log(initialPosts)
   const router = useRouter();
   const [group, setGroup] = useState<SupportGroupCardProps | null>(initialGroup);
   const [posts, setPosts] = useState<Post[]>(initialPosts ?? []);
@@ -415,12 +417,12 @@ export default function GroupDetailClient({
     return path;
   };
 
-  const openShareForPost = (p: { id: string; title?: string; excerpt?: string; tag?: string }) => {
+  const openShareForPost = (p: { id: string; title?: string; excerpt?: string; tag?: string[] }) => {
     const path = `/support-group/${groupId}/post/${p.id}`;
     setShareData({
       title: p.title ?? "Post from Group",
       excerpt: p.excerpt,
-      tags: p.tag ? [p.tag] : [],
+      tags: p.tag ?? [],
       url: makeUrl(path),
       sourceLogo: group?.imageSrc ?? "/mcc-logo.png", // optional: adjust field name to your group model
       sourceText: group?.title ? `Shared from ${group.title}` : "Shared from Group",
@@ -572,6 +574,7 @@ export default function GroupDetailClient({
                     return updatePostLikeState(p.id, !p.isLiked, (p.likeCount ?? 0) + (p.isLiked ? -1 : 1));
                   }}
                   onShare={(postPayload) => openShareForPost(postPayload)}
+                  attachments={p.attachments ?? []}
                 />
               </div>
             ))}

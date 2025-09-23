@@ -105,41 +105,41 @@ export default function CommentClient({
     };
   }, [initialCurrentUser]);
 
-  // flatten helper in case you need to re-flatten API replies on client (keeps normalization)
-  function flattenRepliesClient(apiReplies: any[] = []): FlatReply[] {
-    const out: FlatReply[] = [];
-    (apiReplies || []).forEach((r: any) => {
-      out.push({
-        id: String(r.id),
-        content: r.content,
-        created_at: r.created_at,
-        user_name: r.user_name ?? r.user?.name ?? "Unknown",
-        parentId: null,
-        replyingTo: null,
-        replyingToId: null,
-        likeCount: r.like_count ?? 0,
-        isLiked: r.is_liked ?? false,
-        moderationStatus: r.moderation_status ?? 'approved',
-      });
-      if (Array.isArray(r.replies) && r.replies.length > 0) {
-        r.replies.forEach((nested: any) =>
-          out.push({
-            id: String(nested.id),
-            content: nested.content,
-            created_at: nested.created_at,
-            user_name: nested.user_name ?? nested.user?.name ?? "Unknown",
-            parentId: String(r.id),
-            replyingTo: r.user_name ?? r.user?.name ?? null,
-            replyingToId: String(r.id),
-            likeCount: nested.like_count ?? 0,
-            isLiked: nested.is_liked ?? false,
-            moderationStatus: nested.moderation_status ?? 'approved',
-          })
-        );
-      }
-    });
-    return out;
-  }
+  // // flatten helper in case you need to re-flatten API replies on client (keeps normalization)
+  // function flattenRepliesClient(apiReplies: any[] = []): FlatReply[] {
+  //   const out: FlatReply[] = [];
+  //   (apiReplies || []).forEach((r: any) => {
+  //     out.push({
+  //       id: String(r.id),
+  //       content: r.content,
+  //       created_at: r.created_at,
+  //       user_name: r.user_name ?? r.user?.name ?? "Unknown",
+  //       parentId: null,
+  //       replyingTo: null,
+  //       replyingToId: null,
+  //       likeCount: r.like_count ?? 0,
+  //       isLiked: r.is_liked ?? false,
+  //       moderationStatus: r.moderation_status ?? 'approved',
+  //     });
+  //     if (Array.isArray(r.replies) && r.replies.length > 0) {
+  //       r.replies.forEach((nested: any) =>
+  //         out.push({
+  //           id: String(nested.id),
+  //           content: nested.content,
+  //           created_at: nested.created_at,
+  //           user_name: nested.user_name ?? nested.user?.name ?? "Unknown",
+  //           parentId: String(r.id),
+  //           replyingTo: r.user_name ?? r.user?.name ?? null,
+  //           replyingToId: String(r.id),
+  //           likeCount: nested.like_count ?? 0,
+  //           isLiked: nested.is_liked ?? false,
+  //           moderationStatus: nested.moderation_status ?? 'approved',
+  //         })
+  //       );
+  //     }
+  //   });
+  //   return out;
+  // }
 
   // grouped view (top-level + map of children). comparisons use String(...)
   const grouped = useMemo(() => {
@@ -300,6 +300,28 @@ export default function CommentClient({
     return copy;
   }
 
+  // Add this function to fetch replies inside CommentClient component
+  const fetchReplies = async () => {
+    setLoadingReplies(true);
+    try {
+      const repliesData = await groupApi.getReplies(postId);
+      
+      // Use the same flattening logic as in the server component
+      const flattened = flattenRepliesClient(repliesData);
+      setReplies(flattened);
+      
+      // Update reply count if needed
+      if (initialPost?.reply_count !== undefined) {
+        setReplyCount(flattened.filter(r => r.moderationStatus === 'approved').length);
+      }
+    } catch (err) {
+      console.error("Failed to fetch replies", err);
+    } finally {
+      setLoadingReplies(false);
+    }
+  };
+
+  // Update the submitReply function to refresh after successful post
   const submitReply = async () => {
     const content = text.trim();
     if (!content) return;
@@ -324,14 +346,14 @@ export default function CommentClient({
       replyingToId: replyingToUserId ?? null,
       likeCount: 0,
       isLiked: false,
-      moderationStatus: 'needs_review', // New replies start as needs_review
+      moderationStatus: 'needs_review',
     };
 
     // Insert optimistic item into flattened UI using the clicked id,
     // so it appears under the correct coarse thread.
     setReplies((prev) => insertOptimisticReplyAtCorrectPosition(prev, optimistic, replyToIdImmediate));
 
-    // Build payload: use the exact comment id for parent_id, and include replying_to_id if replying to a nested comment
+    // Build payload
     const payload: { content: string; parent_id?: number; replying_to_id?: number } = { content };
     
     if (replyToIdImmediate) {
@@ -344,33 +366,14 @@ export default function CommentClient({
     }
 
     // debug log — inspect in browser console
-    // eslint-disable-next-line no-console
     console.log("[submitReply] payload:", payload);
 
     try {
       const created = await groupApi.postReply(postId, payload);
       const createdId = String(created.id ?? created.pk ?? created._id ?? Date.now());
 
-      // Replace temp with server object
-      const serverParentId = created.parent_id != null ? String(created.parent_id) : null;
-      setReplies((prev) =>
-        prev.map((it) =>
-          it.id === tempId
-            ? {
-                id: createdId,
-                content: created.content ?? content,
-                created_at: created.created_at ?? new Date().toISOString(),
-                user_name: created.user_name ?? created.user?.name ?? optimistic.user_name,
-                parentId: serverParentId ?? replyDisplayParentId,
-                replyingTo: created.replying_to_user ?? optimistic.replyingTo ?? null,
-                replyingToId: created.replying_to_id ? String(created.replying_to_id) : null,
-                likeCount: created.like_count ?? 0,
-                isLiked: created.is_liked ?? false,
-                moderationStatus: created.moderation_status ?? 'approved',
-              }
-            : it
-        )
-      );
+      // Instead of manually updating, refresh the entire replies list
+      await fetchReplies();
 
       try {
         if (typeof window !== "undefined") {
@@ -392,11 +395,11 @@ export default function CommentClient({
       setReplyingToName(null);
       setReplyingToUserId(null);
 
-      // scroll to created reply in DOM
+      // scroll to created reply in DOM after refresh
       setTimeout(() => {
         const node = listRef.current?.querySelector<HTMLElement>(`[data-reply-id="${createdId}"]`);
         if (node) node.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 50);
+      }, 100); // Slightly longer delay to ensure DOM is updated
     } catch (err: any) {
       // rollback optimistic
       setReplies((r) => r.filter((it) => it.id !== tempId));
@@ -411,6 +414,45 @@ export default function CommentClient({
       setPosting(false);
     }
   };
+
+  // Also update the flattenRepliesClient function to handle all the properties
+  function flattenRepliesClient(apiReplies: any[] = []): FlatReply[] {
+    const out: FlatReply[] = [];
+    (apiReplies || []).forEach((r: any) => {
+      // Top-level reply
+      out.push({
+        id: String(r.id),
+        content: r.content,
+        created_at: r.created_at,
+        user_name: r.user_name ?? r.user?.name ?? "Unknown",
+        parentId: null,
+        replyingTo: null,
+        replyingToId: null,
+        likeCount: r.like_count ?? 0,
+        isLiked: r.is_liked ?? false,
+        moderationStatus: r.moderation_status ?? 'approved',
+      });
+      
+      // Nested replies
+      if (Array.isArray(r.replies) && r.replies.length > 0) {
+        r.replies.forEach((nested: any) =>
+          out.push({
+            id: String(nested.id),
+            content: nested.content,
+            created_at: nested.created_at,
+            user_name: nested.user_name ?? nested.user?.name ?? "Unknown",
+            parentId: String(r.id),
+            replyingTo: r.user_name ?? r.user?.name ?? null,
+            replyingToId: String(r.id),
+            likeCount: nested.like_count ?? 0,
+            isLiked: nested.is_liked ?? false,
+            moderationStatus: nested.moderation_status ?? 'approved',
+          })
+        );
+      }
+    });
+    return out;
+  }
 
 
   // like handler for the post (optimistic)

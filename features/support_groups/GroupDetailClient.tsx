@@ -26,7 +26,7 @@ export default function GroupDetailClient({
   groupId: string;
 }) {
 
-  // console.log(initialPosts)
+  // console.log("Initial Group: ", initialGroup)
   const router = useRouter();
   const [group, setGroup] = useState<SupportGroupCardProps | null>(initialGroup);
   const [posts, setPosts] = useState<Post[]>(initialPosts ?? []);
@@ -132,71 +132,62 @@ export default function GroupDetailClient({
 
   // detect success query param and show success overlay + toast sequence
   // in GroupDetailClient.tsx — replace the success-useEffect block with the following
-  useEffect(() => {
+  // In GroupDetailClient.tsx, add this state after your other state declarations:
+  const [successShown, setSuccessShown] = useState(false);
+
+  // Then update the success useEffect to check this flag:
+  // In GroupDetailClient.tsx, replace the success useEffect with this:
+// Add console logs to debug
+useEffect(() => {
     const s = searchParams?.get("success");
     const pending = searchParams?.get("pending");
     const rejected = searchParams?.get("rejected");
     const imgParam = searchParams?.get("successImage");
-    const decodedImage = imgParam ?? null;
-    setSuccessImage(decodedImage);
-
-    // handle approved success
+    
+    console.log("Success effect running:", { s, pending, rejected });
+    
+    if (!s && !pending && !rejected) return;
+    
+    // Clean URL immediately
+    const url = new URL(window.location.href);
+    url.searchParams.delete("success");
+    url.searchParams.delete("pending");
+    url.searchParams.delete("rejected");
+    url.searchParams.delete("successImage");
+    url.searchParams.delete("newPostId");
+    window.history.replaceState({}, "", url.toString());
+    
     if (s) {
+      console.log("Showing success overlay");
+      setSuccessImage(imgParam);
       setShowSuccessFull(true);
-      const t1 = window.setTimeout(() => {
+      
+      // Hide full overlay after 1.2s
+      setTimeout(() => {
+        console.log("Hiding success overlay, showing toast");
         setShowSuccessFull(false);
         setShowSuccessToast(true);
-
-        const t2 = window.setTimeout(() => {
+        
+        // Hide toast after 2.5s
+        setTimeout(() => {
+          console.log("Hiding toast");
           setShowSuccessToast(false);
-
-          // clean up params
-          try {
-            const url = new URL(window.location.href);
-            url.searchParams.delete("success");
-            url.searchParams.delete("successImage");
-            url.searchParams.delete("newPostId");
-            window.history.replaceState({}, "", url.toString());
-          } catch (e) {}
+          setSuccessImage(null);
         }, 2500);
-
-        return () => window.clearTimeout(t2);
       }, 1200);
-
-      return () => window.clearTimeout(t1);
     }
-
-    // handle pending moderation
+    
     if (pending) {
       setShowSuccessToast(true);
-      // replace text inside SuccessToast? (we'll reuse the green toast but change text below)
-      const t = window.setTimeout(() => {
+      setTimeout(() => {
         setShowSuccessToast(false);
-        try {
-          const url = new URL(window.location.href);
-          url.searchParams.delete("pending");
-          url.searchParams.delete("newPostId");
-          window.history.replaceState({}, "", url.toString());
-        } catch (e) {}
       }, 3000);
-
-      return () => window.clearTimeout(t);
     }
-
-    // handle rejected - show a dismissible inline alert at top (or toast)
+    
     if (rejected) {
-      // you could show a modal or inline message — for simplicity we'll set a small toast-like state
-      // Re-using showSuccessToast to present a neutral message is okay, but better to implement a dedicated state if preferred.
       alert("Your post was rejected by moderation. Please modify it to meet community guidelines and try again.");
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.delete("rejected");
-        url.searchParams.delete("newPostId");
-        window.history.replaceState({}, "", url.toString());
-      } catch (e) {}
     }
-  }, [searchParams]);
-
+}, [searchParams?.get("success"), searchParams?.get("pending"), searchParams?.get("rejected")]);
 
   useEffect(() => {
     let mounted = true;
@@ -563,8 +554,9 @@ export default function GroupDetailClient({
   return (
     <>
       {/* success overlays (rendered above everything) */}
-      {showSuccessFull && <SuccessOverlay image={successImage} />}
-      {showSuccessToast && <SuccessToast image={successImage} />}
+      {/* In the JSX where you render the overlays */}
+  {showSuccessFull && <SuccessOverlay image={successImage} onClose={() => setShowSuccessFull(false)} />}
+  {showSuccessToast && <SuccessToast image={successImage} onClose={() => setShowSuccessToast(false)} />}
 
       {/* Add global styles for shimmer animation */}
       <style dangerouslySetInnerHTML={{

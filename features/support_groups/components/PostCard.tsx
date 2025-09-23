@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { groupApi } from "@/features/support_groups/api/group.api";
 import { authApi } from "@/features/auth/api/auth.api";
+import { fa } from "zod/locales";
 
 export type PostCardProps = {
   id: string;
@@ -31,6 +32,7 @@ export type PostCardProps = {
   onReplyNavigate?: () => void;
   onShare?: (payload: { id: string; title?: string; excerpt?: string; tag?: string[] }) => void;
   attachments?: string[],
+  showFullContent?: boolean,
 };
 
 export default function PostCard({
@@ -50,6 +52,7 @@ export default function PostCard({
   onReplyNavigate,
   onShare,
   attachments,
+  showFullContent=false,
 }: PostCardProps) {
   const router = useRouter();
   const [pending, setPending] = useState(false); // for like
@@ -333,8 +336,12 @@ export default function PostCard({
 
             {/* Title + Excerpt */}
             <div className="mt-3">
-              <h3 className="font-bold text-gray-800 leading-5 line-clamp-2">{title}</h3>
-              <p className="text-gray-600 mt-1 line-clamp-2">{excerpt}</p>
+              <h3 className={`font-bold text-gray-800 leading-5 ${showFullContent ? '' : 'line-clamp-2'}`}>
+                {title}
+              </h3>
+              <p className={`text-gray-600 mt-1 ${showFullContent ? '' : 'line-clamp-2'}`}>
+                {excerpt}
+              </p>
             </div>
 
             {attSrc ? (

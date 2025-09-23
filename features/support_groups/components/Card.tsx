@@ -317,70 +317,39 @@ export default function SupportGroupCard({
             </div>
 
             {/* // inside the isDetail block, replace the existing "mt-5 flex items-center" block with: */}
-            <div className="mt-5 flex items-center gap-3 w-full max-w-[360px]">
-              {/* Left: Member pill or Join button */}
+            <div className="mt-5 flex justify-center w-full">
               {isMember ? (
-                <>
-                  {/* MEMBER PILL (fixed width 148 × 44 to match design) */}
-                  <div className="w-[148px] h-11 flex items-center gap-3 px-3 rounded-[8px] bg-[#ECFDF6]" style={{ border: "1px solid rgba(72,193,181,0.18)" }}>
-                    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center overflow-hidden flex-shrink-0">
-                      {/** show animated GIF briefly if joinAnimation === true, otherwise show SVG check */}
-                      { (joinAnimation) ? (
-                        <Image src="/checkmark.gif" alt="joined" width={28} height={28} />
-                      ) : (
-                        <Image src="/checkmark.svg" alt="joined" width={28} height={28} />
-                      )}
-                    </div>
-
-                    <div className="text-sm font-medium text-[#16AF9F]">Member</div>
-                  </div>
-
-                  {/* Right: Follow button (fills remaining space) */}
-                  <div className="flex-1">
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onFollow?.(); }}
-                      className={clsx(
-                        "h-11 w-full rounded-[8px] border text-[14px] font-medium",
-                        isFollowing ? "bg-white text-[#18448A] border-[#E5E7EB]" : "bg-white text-[#18448A] border-[#E5E7EB]"
-                      )}
-                    >
-                      {isFollowing ? "Following" : "Follow"}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* Join button (fill left side) */}
-                  <button
-                    type="button"
-                    disabled={ctaDisabled}
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onJoin?.(); }}
-                    className={clsx(
-                      "w-[148px] h-11 rounded-[8px] text-white text-[14px] font-medium",
-                      ctaDisabled ? "bg-[#9AA6B2] cursor-not-allowed" : "bg-[#18448A]"
+                <div
+                  className="w-[148px] h-11 flex items-center gap-3 px-3 rounded-[8px] bg-[#ECFDF6]"
+                  style={{ border: "1px solid rgba(72,193,181,0.18)" }}
+                >
+                  <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {joinAnimation ? (
+                      <Image src="/checkmark.gif" alt="joined" width={28} height={28} />
+                    ) : (
+                      <Image src="/checkmark.svg" alt="joined" width={28} height={28} />
                     )}
-                  >
-                    {ctaText}
-                  </button>
-
-                  {/* Follow button */}
-                  <div className="flex-1">
-                    <button
-                      type="button"
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onFollow?.(); }}
-                      className={clsx(
-                        "h-11 w-full rounded-[8px] border text-[14px] font-medium",
-                        isFollowing ? "bg-white text-[#18448A] border-[#E5E7EB]" : "bg-white text-[#18448A] border-[#E5E7EB]"
-                      )}
-                    >
-                      {isFollowing ? "Following" : "Follow"}
-                    </button>
                   </div>
-                </>
+                  <div className="text-sm font-medium text-[#16AF9F]">Member</div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled={ctaDisabled}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onJoin?.();
+                  }}
+                  className={clsx(
+                    "w-[148px] h-11 rounded-[8px] text-white text-[14px] font-medium",
+                    ctaDisabled ? "bg-[#9AA6B2] cursor-not-allowed" : "bg-[#18448A]"
+                  )}
+                >
+                  {ctaText}
+                </button>
               )}
             </div>
-
           </div>
         </div>
       ) : (

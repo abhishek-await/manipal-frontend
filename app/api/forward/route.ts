@@ -33,6 +33,12 @@ async function forwardToBackend(path: string, method: string, headers: Record<st
     headers,
     body: method === "GET" || method === "HEAD" ? undefined : body,
   });
+
+  // const json = await res.json()
+
+  // console.log("Json Response: ", json);
+
+  // return res
 }
 
 export async function POST(req: Request) {
@@ -158,21 +164,74 @@ try {
 console.log("Forwarder: sending multipart with headers:", mergedHeaders);
 
 // send Buffer as body (fetch accepts Buffer)
-const backendRes = await forwardToBackend(path, method, mergedHeaders, bodyBuffer);
+let backendRes = await forwardToBackend(path, method, mergedHeaders, bodyBuffer);
 
 // (then run your existing refresh/retry logic if 401 and refresh token exists)
 
 
   // refresh logic (unchanged)...
   if (backendRes.status === 401 && refresh) {
-    // ... your existing refresh/retry code (reuse mergedHeaders when retrying)
-    // make sure to set mergedHeaders["Authorization"] = `Bearer ${newAccess}` before retry
+    try {
+      const refreshRes = await fetch(`${BACKEND}/auth/token/refresh/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie: allCookies },
+        body: JSON.stringify({ refresh }),
+      });
+
+      if (refreshRes.ok) {
+        const data = await refreshRes.json().catch(() => ({}));
+
+        // set cookies on Next response (httpOnly)
+        if (data.access) {
+          cookieStore.set({
+            name: "accessToken",
+            value: data.access,
+            httpOnly: true,
+            sameSite: "lax",
+            path: "/",
+            maxAge: 60 * 60 * 24, // 15m, adjust to your token lifetime
+            secure: isProd,
+          });
+        }
+        if (data.refresh) {
+          cookieStore.set({
+            name: "refreshToken",
+            value: data.refresh,
+            httpOnly: true,
+            sameSite: "lax",
+            path: "/",
+            maxAge: 60 * 60 * 24 * 10,
+            secure: isProd,
+          });
+        }
+
+        // use new access from refresh response (prefer data.access; fallback to cookie)
+        const newAccess = data.access ?? cookieStore.get("accessToken")?.value;
+        if (newAccess) {
+          forwardHeaders["Authorization"] = `Bearer ${newAccess}`;
+        } else {
+          // If we still don't have access, fall through and return original 401
+        }
+
+        // retry original request with new Authorization header
+        backendRes = await forwardToBackend(path, method, forwardHeaders, bodyToSend);
+      } else {
+        // refresh failed -> clear server cookies (session ended)
+        cookieStore.delete("accessToken");
+        cookieStore.delete("refreshToken");
+      }
+    } catch (err) {
+      console.error("refresh attempt failed", err);
+      // fall back to returning the original 401
+    }
   }
 
   const text = await backendRes.text().catch(() => "");
   const resp = new NextResponse(text, { status: backendRes.status });
   const contentType = backendRes.headers.get("content-type");
   if (contentType) resp.headers.set("content-type", contentType);
+
+  // console.log("Response from BE: ", resp)
   return resp;
 }
 
@@ -252,6 +311,8 @@ const backendRes = await forwardToBackend(path, method, mergedHeaders, bodyBuffe
   // Optionally forward selected headers from backendRes (e.g. content-type)
   const contentType = backendRes.headers.get("content-type");
   if (contentType) resp.headers.set("content-type", contentType);
+
+  //  console.log("Response from BE: ", resp)
 
   return resp;
 }

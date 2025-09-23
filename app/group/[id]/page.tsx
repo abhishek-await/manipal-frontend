@@ -51,6 +51,7 @@ export default async function Page(props: PageProps<'/group/[id]'>) {
     growthPercentage: rawGroup?.growth_percentage,
     createdText: rawGroup?.created_at,
     category: rawGroup?.category,
+    totalPosts: rawGroup?.total_posts
   };
 
   // Server-side fetch posts for this group (authenticated if access token exists)

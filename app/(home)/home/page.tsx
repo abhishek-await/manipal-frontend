@@ -1,12 +1,3 @@
-// pages.forwarded.bulk.tsx
-// This single file contains three updated server page implementations that use the internal
-// /api/forward route so backend sees cookies and refresh logic. Copy each section into the
-// corresponding file in your app (or import a shared forwarder helper).
-
-/* -------------------------------------------------------------------------- */
-/* app/support-groups/page.tsx (forwarded)                                      */
-/* -------------------------------------------------------------------------- */
-
 export const dynamic = "force-dynamic";
 
 import SupportGroupsClient from '@/features/support_groups/SupportGroupsClient'
@@ -110,6 +101,9 @@ export default async function Page() {
   // fallback: empty array
   const groupsRaw = Array.isArray(rawGroups) ? rawGroups : []
   const apiGroups = groupsRaw.map(mapToCard)
+
+  console.log("groupsRaw: ", groupsRaw)
+  console.log("apiGroups: ", apiGroups)
 
   const chipItems = apiGroups.length ? buildChipItemsFromGroups(apiGroups) : []
   const stats = apiGroups.length ? buildStatsFromGroups(apiGroups) : { totalGroups: apiGroups.length, totalPatients: 0, totalExperts: 0, totalDiscussions: 0 }

@@ -561,6 +561,7 @@ export default function CommentClient({
           onToggleLike={handleToggleLike}
           className="rounded-none"
           attachments={initialPost?.attachments}
+          showFullContent={true}
         />
       </div>
 

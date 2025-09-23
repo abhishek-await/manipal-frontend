@@ -254,7 +254,7 @@ export const groupApi = {
     return res.json()
   },
 
-  postReply: async (postId: string, data: {content: string, parent_id?: number}) => {
+  postReply: async (postId: string, data: {content: string, parent_id?: number, replying_to_id?: number}) => {
     // console.log("Body: ", JSON.stringify(data))
     const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/posts/${postId}/reply/`,{
       method: "POST",
@@ -308,5 +308,19 @@ export const groupApi = {
 
     return res.json()
 
+  },
+
+  likeReply: async (replyId: string) => {
+    const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/replies/${replyId}/like/`,{
+      method: "POST",
+      headers: { 'Content-Type': 'application/json',},
+    })
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`Error liking reply: ${res.status} ${text}`)
+    }
+
+    return res.json()
   }
 };

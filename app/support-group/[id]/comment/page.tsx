@@ -8,6 +8,9 @@ type ReplyFromApi = {
   user_name: string;
   content: string;
   created_at: string;
+  like_count?: number;
+  is_liked_by_user?: boolean;
+  moderation_status?: 'approved' | 'needs_review' | 'rejected';
   replies?: ReplyFromApi[]; // nested replies
 };
 
@@ -37,6 +40,10 @@ function flattenReplies(apiReplies: ReplyFromApi[] = []) {
     user_name: string;
     parentId?: string | null;
     replyingTo?: string | null;
+    replyingToId?: string | null;
+    likeCount?: number;
+    isLiked?: boolean;
+    moderationStatus?: 'approved' | 'needs_review' | 'rejected';
   }> = [];
 
   apiReplies.forEach((r) => {
@@ -47,6 +54,10 @@ function flattenReplies(apiReplies: ReplyFromApi[] = []) {
       user_name: r.user_name,
       parentId: null,
       replyingTo: null,
+      replyingToId: null,
+      likeCount: r.like_count ?? 0,
+      isLiked: r.is_liked_by_user ?? false,
+      moderationStatus: r.moderation_status ?? 'approved',
     });
 
     if (Array.isArray(r.replies) && r.replies.length > 0) {
@@ -58,6 +69,10 @@ function flattenReplies(apiReplies: ReplyFromApi[] = []) {
           user_name: nested.user_name,
           parentId: r.id.toString(), // indicate it was replying to r.id
           replyingTo: r.user_name ?? null,
+          replyingToId: r.id.toString(),
+          likeCount: nested.like_count ?? 0,
+          isLiked: nested.is_liked_by_user ?? false,
+          moderationStatus: nested.moderation_status ?? 'approved',
         })
       );
     }
@@ -119,7 +134,9 @@ export default async function Page(props: PageProps<'/support-group/[id]/comment
   // 2) fetch replies
   const repliesUrl = `${API_BASE}/support-groups/posts/${postId}/replies/`;
   const apiReplies: ReplyFromApi[] | null = (await forwardFetchJson(repliesUrl, "GET")) ?? [];
+  console.log("API Replies: ", apiReplies)
   const flattened = flattenReplies(apiReplies ?? []);
+  console.log("Flattened Replies: ", flattened)
 
   // 3) server-side fetch current user by forwarding cookies to backend
   let initialCurrentUser: any | null = null;

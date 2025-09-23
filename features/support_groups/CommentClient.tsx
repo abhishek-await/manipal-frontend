@@ -15,6 +15,10 @@ export type FlatReply = {
   user_name: string;
   parentId?: string | null;
   replyingTo?: string | null;
+  replyingToId?: string | null; // Add this for API requirement
+  likeCount?: number;
+  isLiked?: boolean;
+  moderationStatus?: 'approved' | 'needs_review' | 'rejected';
 };
 
 export default function CommentClient({
@@ -40,7 +44,7 @@ export default function CommentClient({
   postId: string;
 }) {
 
-  // console.log("Initial Post: ", initialPost)
+  console.log("Initial Replies: ", initialReplies)
   const router = useRouter();
 
   // normalize server-provided replies: ensure ids and parentIds are strings (or null)
@@ -51,6 +55,10 @@ export default function CommentClient({
     user_name: r.user_name ?? r.user?.name ?? "Unknown",
     parentId: r.parentId != null ? String(r.parentId) : r.parent_id != null ? String(r.parent_id) : null,
     replyingTo: r.replyingTo ?? null,
+    replyingToId: r.replyingToId ?? r.replying_to_id ?? null,
+    likeCount: r.likeCount ?? 0,
+    isLiked: r.isLiked ?? false,
+    moderationStatus: r.moderationStatus ?? 'approved',
   }));
 
   const [replies, setReplies] = useState<FlatReply[]>(normalizedInitialReplies);
@@ -64,11 +72,13 @@ export default function CommentClient({
   const [likeCount, setLikeCount] = useState<number>(initialPost?.like_count ?? 0);
   const [replyCount, setReplyCount] = useState<number>(initialPost?.reply_count ?? 0);
   const [likePending, setLikePending] = useState(false);
+  const [replyLikePending, setReplyLikePending] = useState<Record<string, boolean>>({});
 
   // reply input state
   const [text, setText] = useState("");
   const [replyToIdImmediate, setReplyToIdImmediate] = useState<string | null>(null); // actual id sent to API (string)
   const [replyingToName, setReplyingToName] = useState<string | null>(null); // display name
+  const [replyingToUserId, setReplyingToUserId] = useState<string | null>(null); // Add this for replying_to_id
   const [replyDisplayParentId, setReplyDisplayParentId] = useState<string | null>(null); // top-level parent used for grouping (string)
   const [posting, setPosting] = useState(false);
   const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({});
@@ -106,6 +116,10 @@ export default function CommentClient({
         user_name: r.user_name ?? r.user?.name ?? "Unknown",
         parentId: null,
         replyingTo: null,
+        replyingToId: null,
+        likeCount: r.like_count ?? 0,
+        isLiked: r.is_liked ?? false,
+        moderationStatus: r.moderation_status ?? 'approved',
       });
       if (Array.isArray(r.replies) && r.replies.length > 0) {
         r.replies.forEach((nested: any) =>
@@ -116,6 +130,10 @@ export default function CommentClient({
             user_name: nested.user_name ?? nested.user?.name ?? "Unknown",
             parentId: String(r.id),
             replyingTo: r.user_name ?? r.user?.name ?? null,
+            replyingToId: String(r.id),
+            likeCount: nested.like_count ?? 0,
+            isLiked: nested.is_liked ?? false,
+            moderationStatus: nested.moderation_status ?? 'approved',
           })
         );
       }
@@ -158,6 +176,9 @@ export default function CommentClient({
     // clickedId must always be the exact comment id the user clicked on.
     setReplyToIdImmediate(clickedId);
     setReplyingToName(toName ?? null);
+    
+    // Store the clicked user's id for replying_to_id
+    setReplyingToUserId(clickedId);
 
     // Compute displayParentId separately: top-level parent id used to insert optimistic replies
     const clicked = replies.find((it) => String(it.id) === clickedId);
@@ -181,10 +202,50 @@ export default function CommentClient({
     setReplyToIdImmediate(null);
     setReplyingToName(null);
     setReplyDisplayParentId(null);
+    setReplyingToUserId(null);
   };
 
   const toggleReplies = (parentId: string) => {
     setExpandedParents((s) => ({ ...s, [parentId]: !s[parentId] }));
+  }
+    // Handle reply likes
+  const handleReplyLike = async (replyId: string) => {
+    if (!currentUser) {
+      router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
+
+    // Optimistic update
+    const prevReplies = [...replies];
+    const replyIndex = replies.findIndex(r => r.id === replyId);
+    
+    if (replyIndex !== -1) {
+      const reply = replies[replyIndex];
+      const wasLiked = reply.isLiked;
+      
+      // Update state optimistically
+      setReplies(prev => prev.map(r => 
+        r.id === replyId 
+          ? { ...r, isLiked: !wasLiked, likeCount: (r.likeCount || 0) + (wasLiked ? -1 : 1) }
+          : r
+      ));
+      
+      setReplyLikePending(prev => ({ ...prev, [replyId]: true }));
+
+      try {
+        await groupApi.likeReply(replyId);
+      } catch (err: any) {
+        console.error("Reply like failed", err);
+        // Rollback on error
+        setReplies(prevReplies);
+        if (err?.message?.toLowerCase().includes("unauthorized")) {
+          authApi.clearTokens?.();
+          router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+        }
+      } finally {
+        setReplyLikePending(prev => ({ ...prev, [replyId]: false }));
+      }
+    }
   };
 
   // Insert optimistic reply into flattened list so it appears under the correct top-level parent
@@ -260,16 +321,27 @@ export default function CommentClient({
       user_name: currentUser?.full_name ?? currentUser?.user_name ?? "You",
       parentId: replyDisplayParentId, // UI grouping only
       replyingTo: replyingToName ?? null,
+      replyingToId: replyingToUserId ?? null,
+      likeCount: 0,
+      isLiked: false,
+      moderationStatus: 'needs_review', // New replies start as needs_review
     };
 
     // Insert optimistic item into flattened UI using the clicked id,
     // so it appears under the correct coarse thread.
     setReplies((prev) => insertOptimisticReplyAtCorrectPosition(prev, optimistic, replyToIdImmediate));
 
-    // Build payload: IMPORTANT - use the immediate parent id (the exact comment id),
-    // not replyDisplayParentId
-    const payload: { content: string; parent_id?: number } = { content };
-    if (replyToIdImmediate) payload.parent_id = Number(replyToIdImmediate);
+    // Build payload: use the exact comment id for parent_id, and include replying_to_id if replying to a nested comment
+    const payload: { content: string; parent_id?: number; replying_to_id?: number } = { content };
+    
+    if (replyToIdImmediate) {
+      payload.parent_id = Number(replyToIdImmediate);
+    }
+    
+    // If we're replying to a nested comment, also include replying_to_id
+    if (replyingToUserId && replyDisplayParentId && replyingToUserId !== replyDisplayParentId) {
+      payload.replying_to_id = Number(replyingToUserId);
+    }
 
     // debug log — inspect in browser console
     // eslint-disable-next-line no-console
@@ -279,8 +351,7 @@ export default function CommentClient({
       const created = await groupApi.postReply(postId, payload);
       const createdId = String(created.id ?? created.pk ?? created._id ?? Date.now());
 
-      // Replace temp with server object; use server parent_id when available.
-      // If backend returned created.parent_id, prefer it. Otherwise keep the UI grouping parent id.
+      // Replace temp with server object
       const serverParentId = created.parent_id != null ? String(created.parent_id) : null;
       setReplies((prev) =>
         prev.map((it) =>
@@ -290,9 +361,12 @@ export default function CommentClient({
                 content: created.content ?? content,
                 created_at: created.created_at ?? new Date().toISOString(),
                 user_name: created.user_name ?? created.user?.name ?? optimistic.user_name,
-                // **** USE serverParentId when available; fallback to replyDisplayParentId ****
                 parentId: serverParentId ?? replyDisplayParentId,
-                replyingTo: optimistic.replyingTo ?? null,
+                replyingTo: created.replying_to_user ?? optimistic.replyingTo ?? null,
+                replyingToId: created.replying_to_id ? String(created.replying_to_id) : null,
+                likeCount: created.like_count ?? 0,
+                isLiked: created.is_liked ?? false,
+                moderationStatus: created.moderation_status ?? 'approved',
               }
             : it
         )
@@ -316,6 +390,7 @@ export default function CommentClient({
       setReplyToIdImmediate(null);
       setReplyDisplayParentId(null);
       setReplyingToName(null);
+      setReplyingToUserId(null);
 
       // scroll to created reply in DOM
       setTimeout(() => {
@@ -388,7 +463,36 @@ export default function CommentClient({
     }
   };
 
+  // Filter replies based on moderation status
+  const visibleReplies = replies.filter(reply => {
+    // Show all approved replies
+    if (reply.moderationStatus === 'approved') return true;
+    
+    // Show user's own replies regardless of status
+    if (currentUser && reply.user_name === (currentUser.full_name || currentUser.user_name)) return true
+        
+    // Don't show rejected replies from others
+    return false;
+  });
 
+  // Update grouped to use visible replies
+  const visibleGrouped = useMemo(() => {
+    const map: Record<string, FlatReply[]> = {};
+    const top: FlatReply[] = [];
+    for (const r of visibleReplies) {
+      if (r.parentId == null) top.push(r);
+      else {
+        const key = String(r.parentId);
+        map[key] = map[key] ?? [];
+        map[key].push(r);
+      }
+    }
+    Object.keys(map).forEach((k) => {
+      map[k].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    });
+    top.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return { top, map };
+  }, [visibleReplies]);
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
@@ -421,7 +525,7 @@ export default function CommentClient({
       {/* Comments header */}
       <div className="px-4 pt-4 pb-2">
         <div className="text-xs text-gray-500">
-          {(initialPost?.reply_count ?? replies.length) > 0 ? `${initialPost?.reply_count ?? replies.length} comment${(initialPost?.reply_count ?? replies.length) === 1 ? "" : "s"}` : "No comments"}
+          {visibleReplies.length > 0 ? `${visibleReplies.length} comment${visibleReplies.length === 1 ? "" : "s"}` : "No comments"}
         </div>
         <div className="mt-1 text-[18px] font-bold">Most Recent</div>
       </div>
@@ -429,18 +533,20 @@ export default function CommentClient({
       {/* Comments list */}
       <div className="flex-1 overflow-auto px-4 py-2 pb-32" ref={listRef}>
         {loadingReplies && <div className="text-center text-sm text-gray-500 py-4">Loading comments…</div>}
-        {!loadingReplies && grouped.top.length === 0 && (
+        {!loadingReplies && visibleGrouped.top.length === 0 && (
           <div className="text-center text-sm text-gray-500 py-8 flex flex-col items-center">
             <div className="font-medium text-[#18448A]">Your words can heal 💙</div>
             <div className="mt-2">Be the first to share your thoughts and support healthy living together</div>
-            <Image src="/HandPointing.svg" alt="No replie" width={60} height={60} className="object-cover" />
+            <Image src="/HandPointing.svg" alt="No replies" width={60} height={60} className="object-cover" />
           </div>
         )}
 
         <div className="space-y-4">
-          {grouped.top.map((parent) => {
-            const children = grouped.map[String(parent.id)] ?? [];
+          {visibleGrouped.top.map((parent) => {
+            const children = visibleGrouped.map[String(parent.id)] ?? [];
             const showChildren = !!expandedParents[String(parent.id)];
+            const isOwn = currentUser && parent.user_name === (currentUser.full_name || currentUser.user_name);
+            
             return (
               <div key={parent.id} className="bg-white border rounded-xl">
                 <div className="p-4">
@@ -454,14 +560,33 @@ export default function CommentClient({
                           <div className="text-[16px] font-semibold text-[#18448A]">{parent.user_name}</div>
                           <div className="text-xs text-gray-400">{timeAgo(parent.created_at)}</div>
                         </div>
+                        {/* Show moderation status for user's own comments */}
+                        {isOwn && parent.moderationStatus !== 'approved' && (
+                          <div className={`text-xs px-2 py-1 rounded ${
+                            parent.moderationStatus === 'needs_review' 
+                              ? 'bg-yellow-100 text-yellow-700' 
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {parent.moderationStatus === 'needs_review' ? 'Pending Review' : 'Rejected'}
+                          </div>
+                        )}
                       </div>
 
                       <div className="mt-3 text-[#54555A] leading-6">{parent.content}</div>
 
                       <div className="mt-3 flex items-center justify-between gap-6 text-sm">
-                        <button className="flex items-center gap-2 text-[#16AF9F]">
-                          <Image src="/favorite.svg" alt="like" width={16} height={16} />
-                          <span>547</span>
+                        <button 
+                          className={`flex items-center gap-2 ${parent.isLiked ? 'text-[#16AF9F]' : 'text-[#6B7280]'}`}
+                          onClick={() => handleReplyLike(parent.id)}
+                          disabled={replyLikePending[parent.id]}
+                        >
+                          <Image 
+                            src={parent.isLiked ? "/favorite-fill.svg" : "/favorite.svg"} 
+                            alt="like" 
+                            width={16} 
+                            height={16}   
+                          />
+                          <span>{parent.likeCount || 0}</span>
                         </button>
                         <button className="flex items-center gap-2 text-[#6B7280]" onClick={() => startReply(String(parent.id), parent.user_name)}>
                           <Image src="/chat_bubble.svg" alt="reply" width={16} height={16} />
@@ -496,39 +621,66 @@ export default function CommentClient({
 
                 {children.length > 0 && showChildren && (
                   <div className="px-4 pb-4 space-y-3">
-                    {children.map((child) => (
-                      <div key={child.id} data-reply-id={child.id} className="flex gap-3 items-start">
-                        <div className="h-8 w-8 rounded-full overflow-hidden mt-1">
-                          <Image src="/avatars/omar.png" alt={child.user_name} width={32} height={32} className="object-cover" />
-                        </div>
+                    {children.map((child) => {
+                      const isOwnChild = currentUser && child.user_name === (currentUser.full_name || currentUser.user_name);
+                      
+                      return (
+                        <div key={child.id} data-reply-id={child.id} className="flex gap-3 items-start">
+                          <div className="h-8 w-8 rounded-full overflow-hidden mt-1">
+                            <Image src="/avatars/omar.png" alt={child.user_name} width={32} height={32} className="object-cover" />
+                          </div>
 
-                        <div className="flex-1 bg-[#F7FAF9] rounded-lg p-3">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="text-sm font-semibold text-[#18448A]">{child.user_name}</div>
-                              <div className="text-xs text-gray-400">{timeAgo(child.created_at)}</div>
+                          <div className="flex-1 bg-[#F7FAF9] rounded-lg p-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="text-sm font-semibold text-[#18448A]">
+                                  {child.user_name}
+                                  {child.replyingTo && (
+                                    <span className="font-normal text-gray-500"> • replying to <span className="text-[#18448A]">@{child.replyingTo}</span></span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-gray-400">{timeAgo(child.created_at)}</div>
+                              </div>
+                              {isOwnChild && child.moderationStatus !== 'approved' && (
+                                <div className={`text-xs px-2 py-1 rounded ${
+                                  child.moderationStatus === 'needs_review' 
+                                    ? 'bg-yellow-100 text-yellow-700' 
+                                    : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {child.moderationStatus === 'needs_review' ? 'Pending' : 'Rejected'}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="mt-2 text-[#54555A]">{child.content}</div>
+
+                            <div className="mt-2 flex items-center gap-4 text-sm justify-between">
+                              <button 
+                                className={`flex items-center gap-2 ${child.isLiked ? 'text-[#16AF9F]' : 'text-[#6B7280]'}`}
+                                onClick={() => handleReplyLike(child.id)}
+                                disabled={replyLikePending[child.id]}
+                              >
+                                <Image 
+                                  src={child.isLiked ? "/favorite-fill.svg" : "/favorite.svg"} 
+                                  alt="like" 
+                                  width={14} 
+                                  height={14} 
+                                />
+                                <span>{child.likeCount || 0}</span>
+                              </button>
+                              <button onClick={() => startReply(child.id, child.user_name)} className="text-[#18448A] flex items-center gap-2">
+                                <Image src="/chat_bubble.svg" alt="reply" width={14} height={14} />
+                                <span>Reply</span>
+                              </button>
+                              <button onClick={() => handleShare()} className="text-[#6B7280] flex items-center gap-2">
+                                <Image src="/share.svg" alt="share" width={14} height={14} />
+                                <span>Share</span>
+                              </button>
                             </div>
                           </div>
-
-                          <div className="mt-2 text-[#54555A]">{child.content}</div>
-
-                          <div className="mt-2 flex items-center gap-4 text-sm justify-between">
-                            <button className="flex items-center gap-2 text-[#16AF9F]">
-                              <Image src="/favorite.svg" alt="like" width={14} height={14} />
-                              <span>547</span>
-                            </button>
-                            <button onClick={() => startReply(child.id, child.user_name)} className="text-[#18448A] flex items-center gap-2">
-                              <Image src="/chat_bubble.svg" alt="reply" width={14} height={14} />
-                              <span>Reply</span>
-                            </button>
-                            <button onClick={() => handleShare()} className="text-[#6B7280] flex items-center gap-2">
-                              <Image src="/share.svg" alt="share" width={14} height={14} />
-                              <span>Share</span>
-                            </button>
-                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -549,7 +701,7 @@ export default function CommentClient({
         <div className="flex items-center gap-3">
           <textarea
             ref={inputRef}
-            placeholder={replyToIdImmediate ? `Reply to ${replyingToName ?? "user"}` : "Reply to post"}
+                        placeholder={replyToIdImmediate ? `Reply to ${replyingToName ?? "user"}` : "Reply to post"}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={onKeyDown}
@@ -577,7 +729,7 @@ export default function CommentClient({
         </div>
 
         {!currentUser && (
-          <div className="mt-2 text-xs text-gray-500">You’ll be asked to sign in before posting.</div>
+          <div className="mt-2 text-xs text-gray-500">You'll be asked to sign in before posting.</div>
         )}
       </div>
     </div>

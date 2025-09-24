@@ -56,7 +56,7 @@ export default function SearchBar({
     const path = `/search${qs ? `?${qs}` : ""}`;
 
     // prefetch optionally
-    router.prefetch?.("/search");
+    // router.prefetch?.("/search");
 
     startTransition(() => {
       router.push(path);
@@ -73,9 +73,9 @@ export default function SearchBar({
     if (navigateOnInteract) navigateToSearch();
   };
 
-  const prefetchSearch = () => {
-    router.prefetch?.("/search");
-  };
+  // const prefetchSearch = () => {
+  //   router.prefetch?.("/search");
+  // };
 
   const readOnly = navigateOnInteract;
 
@@ -96,8 +96,8 @@ export default function SearchBar({
         onSubmit?.();
       }}
       className={cx("relative w-full h-[52px]", className)}
-      onPointerEnter={prefetchSearch}
-      onTouchStart={prefetchSearch}
+      // onPointerEnter={prefetchSearch}
+      // onTouchStart={prefetchSearch}
     >
       {/* border/background layer */}
       <div className="absolute inset-0 rounded-[8px] border border-[#16AF9F] pointer-events-none" />

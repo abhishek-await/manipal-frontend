@@ -301,9 +301,9 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
                             <div key={c.id} className="w-full max-w-[360px] mx-auto">
                               <Link
                                 href={href}
-                                prefetch={true}
+                                prefetch={false}
                                 className="block w-full"
-                                onPointerEnter={() => { router.prefetch?.(href); }}
+                                // onPointerEnter={() => { router.prefetch?.(href); }}
                                 onClick={(e) => {
                                   // intercept navigation to show spinner first
                                   e.preventDefault();

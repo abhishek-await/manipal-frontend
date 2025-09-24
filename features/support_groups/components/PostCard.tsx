@@ -151,10 +151,10 @@ export default function PostCard({
 
     const href = `/support-group/${id}/comment`;
 
-    try {
-      // best-effort prefetch
-      router.prefetch?.(href);
-    } catch {}
+    // try {
+    //   // best-effort prefetch
+    //   router.prefetch?.(href);
+    // } catch {}
 
     // show spinner/feedback before navigating
     setNavPending(true);
@@ -179,32 +179,32 @@ export default function PostCard({
   };
 
   // --- PREFETCH on hover/focus (new) ---
-  const prefetchedRef = useRef(false);
-  const prefetchComments = async () => {
-    if (prefetchedRef.current) return;
-    prefetchedRef.current = true;
+  // const prefetchedRef = useRef(false);
+  // const prefetchComments = async () => {
+  //   if (prefetchedRef.current) return;
+  //   prefetchedRef.current = true;
 
-    const href = `/support-group/${id}/comment`;
+  //   const href = `/support-group/${id}/comment`;
 
-    try {
-      router.prefetch?.(href);
-    } catch (e) {}
+  //   // try {
+  //   //   router.prefetch?.(href);
+  //   // } catch (e) {}
 
-    try {
-      const maybeFn = (groupApi as any).getComments ?? (groupApi as any).getPostComments ?? (groupApi as any).getReplies;
-      if (typeof maybeFn === "function") {
-        const p = maybeFn(String(id));
-        await Promise.race([p, new Promise((res) => setTimeout(res, 350))]);
-      }
-    } catch (e) {}
+  //   try {
+  //     const maybeFn = (groupApi as any).getComments ?? (groupApi as any).getPostComments ?? (groupApi as any).getReplies;
+  //     if (typeof maybeFn === "function") {
+  //       const p = maybeFn(String(id));
+  //       await Promise.race([p, new Promise((res) => setTimeout(res, 350))]);
+  //     }
+  //   } catch (e) {}
 
-    try {
-      const u = authApi.getCurrentUser?.();
-      if (u && typeof (u as any).then === "function") {
-        await Promise.race([u, new Promise((res) => setTimeout(res, 250))]);
-      }
-    } catch {}
-  };
+  //   try {
+  //     const u = authApi.getCurrentUser?.();
+  //     if (u && typeof (u as any).then === "function") {
+  //       await Promise.race([u, new Promise((res) => setTimeout(res, 250))]);
+  //     }
+  //   } catch {}
+  // };
 
   // show reply count changes pushed by events
   useEffect(() => {
@@ -263,9 +263,9 @@ export default function PostCard({
     }
 
     const href = commentHref;
-    try {
-      router.prefetch?.(href);
-    } catch {}
+    // try {
+    //   router.prefetch?.(href);
+    // } catch {}
 
     // Show navigation feedback
     setNavPending(true);
@@ -310,8 +310,8 @@ export default function PostCard({
   return (
     <Card
       className={`w-full border border-gray-200 shadow-sm ${className} relative transition-transform ${navPending ? "opacity-70 pointer-events-none" : "hover:shadow-md"}`}
-      onPointerEnter={prefetchComments}
-      onFocus={prefetchComments}
+      // onPointerEnter={prefetchComments}
+      // onFocus={prefetchComments}
       tabIndex={0}
       onClick={handleCardClick}
       onKeyDown={handleKeyDown}

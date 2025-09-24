@@ -61,7 +61,12 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
   const [visibleCount, setVisibleCount] = useState<number>(PAGE_SIZE);
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [selectedChip, groups]);
+  }, [selectedChip]);
+
+  // If visibleGroups becomes smaller than the current visibleCount, clamp it down
+  useEffect(() => {
+    setVisibleCount((prev) => Math.min(prev, visibleGroups.length || 0));
+  }, [visibleGroups.length]);
 
   const displayedGroups = useMemo(() => visibleGroups.slice(0, visibleCount), [visibleGroups, visibleCount]);
   const handleLoadMore = () => setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, visibleGroups.length));

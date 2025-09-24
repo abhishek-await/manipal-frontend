@@ -248,7 +248,7 @@ export default function PostCard({
 
   // --- New: handle clicking the card (navigate to comments) with feedback ---
   const onCardActivate = async () => {
-    if (navPending) return;
+    if (navPending || showFullContent) return;
     // quick auth check to match reply behavior
     const current = await authApi.getCurrentUser().catch(() => null);
     if (!current) {

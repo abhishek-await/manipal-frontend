@@ -536,6 +536,43 @@ export default function CommentClient({
     return { top, map };
   }, [visibleReplies]);
 
+    // keyboard offset so fixed input moves above mobile keyboard
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
+
+  useEffect(() => {
+    const handleViewport = () => {
+      if (typeof window === "undefined") return;
+      // `visualViewport` is the right API on mobile browsers when keyboard opens
+      const vv = (window as any).visualViewport;
+      const viewportHeight = vv?.height ?? window.innerHeight;
+      const covered = Math.max(0, window.innerHeight - viewportHeight);
+      setKeyboardOffset(covered);
+    };
+
+    // attach listeners
+    if ((window as any).visualViewport) {
+      (window as any).visualViewport.addEventListener("resize", handleViewport);
+      (window as any).visualViewport.addEventListener("scroll", handleViewport);
+    } else {
+      window.addEventListener("resize", handleViewport);
+      window.addEventListener("orientationchange", handleViewport);
+    }
+
+    // initial run
+    handleViewport();
+
+    return () => {
+      if ((window as any).visualViewport) {
+        (window as any).visualViewport.removeEventListener("resize", handleViewport);
+        (window as any).visualViewport.removeEventListener("scroll", handleViewport);
+      } else {
+        window.removeEventListener("resize", handleViewport);
+        window.removeEventListener("orientationchange", handleViewport);
+      }
+    };
+  }, []);
+
+
   return (
     <div className="min-h-screen bg-white flex flex-col">
       {/* Header */}
@@ -569,12 +606,12 @@ export default function CommentClient({
       <div className="px-4 pt-4 pb-2">
         <div className="text-xs text-gray-500">
           {visibleReplies.length > 0 ? `${visibleReplies.length} comment${visibleReplies.length === 1 ? "" : "s"}` : "No comments"}
-        </div>
+        </div>  
         <div className="mt-1 text-[18px] font-bold">Most Recent</div>
       </div>
 
       {/* Comments list */}
-      <div className="flex-1 overflow-auto px-4 py-2 pb-32" ref={listRef}>
+      <div className="flex-1 overflow-auto px-4 py-2 pb-32 scrollbar-hide" ref={listRef}>
         {loadingReplies && <div className="text-center text-sm text-gray-500 py-4">Loading comments…</div>}
         {!loadingReplies && visibleGrouped.top.length === 0 && (
           <div className="text-center text-sm text-gray-500 py-8 flex flex-col items-center">
@@ -733,7 +770,15 @@ export default function CommentClient({
       </div>
 
       {/* Fixed input area */}
-      <div className="fixed left-0 right-0 bottom-0 border-t px-4 py-3 bg-white">
+      <div
+        className="fixed left-0 right-0 border-t px-4 py-3 bg-white"
+        style={{
+          // add safe area inset + keyboard offset so bar sits above keyboard
+          bottom: `calc(env(safe-area-inset-bottom, 0px) + ${keyboardOffset}px)`,
+          // keep a high z-index
+          zIndex: 60,
+        }}
+      >
         {replyToIdImmediate && (
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className="text-sm text-gray-700">Replying to <span className="font-semibold">{replyingToName}</span></div>
@@ -744,14 +789,17 @@ export default function CommentClient({
         <div className="flex items-center gap-3">
           <textarea
             ref={inputRef}
-                        placeholder={replyToIdImmediate ? `Reply to ${replyingToName ?? "user"}` : "Reply to post"}
+            placeholder={replyToIdImmediate ? `Reply to ${replyingToName ?? "user"}` : "Reply to post"}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={onKeyDown}
+            onFocus={() => {
+              // try to ensure input is visible on mobile when keyboard opens
+              setTimeout(() => inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+            }}
             rows={1}
-            className="flex-1 h-12 resize-none rounded-full px-4 py-3 text-[15px] outline-none border border-[#EDEDED] focus:ring-2 focus:ring-[#16AF9F]"
+            className="flex-1 h-12 resize-none rounded-full px-4 py-3 text-[15px] outline-none border border-[#EDEDED] border-r-0 focus:ring-2 focus:ring-[#16AF9F]"
           />
-
           <button
             onClick={submitReply}
             disabled={posting || text.trim().length === 0}

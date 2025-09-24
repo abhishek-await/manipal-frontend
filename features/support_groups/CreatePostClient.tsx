@@ -352,16 +352,14 @@ export default function CreatePostClient({
           )}
 
           {/* tags row - ONLY once, placed above media controls */}
-          <div className="flex items-center gap-3 border-t border-b border-[#F1F5F9] py-3">
+          {/* <div className="flex items-center gap-3 border-t border-b border-[#F1F5F9] py-3">
             <div className="flex items-center gap-2">
-              {/* Tag icon using next/image (put your tag.svg in /public/icons/tag.svg) */}
               <div className="w-5 h-5 relative">
                 <Image src="/tag.svg" alt="tag icon" width={18} height={18} />
               </div>
             </div>
 
             <div className="flex-1">
-              {/* single button: opens the tag sheet */}
               <button
                 type="button"
                 onClick={() => setTagSheetOpen(true)}
@@ -385,8 +383,7 @@ export default function CreatePostClient({
               </button>
             </div>
 
-            {/* NOTE: removed the right-side duplicate 'Choose a tag' button */}
-          </div>
+          </div> */}
 
           {/* media controls (no text — only photo/video icons) */}
           <div className="flex items-center">
@@ -394,7 +391,7 @@ export default function CreatePostClient({
               type="button"
               onClick={openFilePicker}
               disabled={loading} // Add this
-              className="inline-flex items-center gap-8 rounded-lg bg-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-4 rounded-lg bg-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Add media"
             >
               {/* two icons only — use your svg files in /public/icons */}
@@ -404,9 +401,8 @@ export default function CreatePostClient({
               <div className="w-6 h-6 relative">
                 <Image src="/photo.svg" alt="photo" width={24} height={24} />
               </div>
+              <div className="text-sm text-[#6B7280]">Supports images (up to 1MB)</div>
             </button>
-
-            <div className="text-sm text-[#6B7280] px-3">Supports images (up to 1MB)</div>
           </div>
 
           <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple onChange={onFilesSelected} className="hidden" />
@@ -416,7 +412,7 @@ export default function CreatePostClient({
       </main>
 
       {/* Tag bottom sheet */}
-      {tagSheetOpen && (
+      {/* {tagSheetOpen && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/30" onClick={() => setTagSheetOpen(false)} />
           <div className="absolute left-0 right-0 bottom-0 bg-white rounded-t-2xl p-4" style={{ boxShadow: "0 -20px 30px rgba(0,0,0,0.12)" }}>
@@ -457,7 +453,7 @@ export default function CreatePostClient({
             </div>
           </div>
         </div>
-      )}
+      )} */}
     </div>
   );
 }

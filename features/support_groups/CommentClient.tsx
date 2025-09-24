@@ -733,7 +733,7 @@ export default function CommentClient({
       </div>
 
       {/* Fixed input area */}
-      <div className="fixed left-0 right-0 bottom-0 border-t px-4 py-3 bg-white">
+      <div className="fixed left-0 right-0 bottom-0 px-4 py-3 bg-white">
         {replyToIdImmediate && (
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className="text-sm text-gray-700">Replying to <span className="font-semibold">{replyingToName}</span></div>
@@ -749,7 +749,7 @@ export default function CommentClient({
             onChange={(e) => setText(e.target.value)}
             onKeyDown={onKeyDown}
             rows={1}
-            className="flex-1 h-12 resize-none rounded-full px-4 py-3 text-[15px] outline-none border border-[#EDEDED] focus:ring-2 focus:ring-[#16AF9F]"
+            className="flex-1 h-12 resize-none rounded-full px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-[#16AF9F]"
           />
 
           <button
@@ -762,7 +762,7 @@ export default function CommentClient({
             title={posting ? "Posting…" : "Send reply"}
           >
             {posting ? (
-              <div className="h-5 w-5 rounded-full border-2 border-white border-t-transparent animate-spin" style={{ borderColor: "#16AF9F", borderTopColor: "transparent" }} />
+              <div className="h-5 w-5 rounded-full border-2 border-white border-t-transparent animate-spin" />
             ) : (
               <div className="h-12 w-12 rounded-full bg-[#16AF9F] flex items-center justify-center">
                 <Image src="/send.svg" alt="Send" width={20} height={20} />

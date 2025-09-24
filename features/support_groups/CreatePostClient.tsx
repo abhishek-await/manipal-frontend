@@ -104,13 +104,21 @@ export default function CreatePostClient({
 
   const openFilePicker = () => fileInputRef.current?.click();
 
+  const MAX_UPLOAD_BYTES = 1 * 1024 * 1024; // 1 MB
+
   const onFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const fl = e.target.files;
     if (!fl || fl.length === 0) return;
-    // pick only first file
     const first = fl[0];
+
+    if (first.size > MAX_UPLOAD_BYTES) {
+      console.log("File too large")
+      setRejectionMessage(`File is too large. Max ${Math.round(MAX_UPLOAD_BYTES/1024/1024)} MB allowed.`);
+      e.currentTarget.value = "";
+      return;
+    }
+
     setFiles([first]);
-    // reset input value so same file can be reselected later
     e.currentTarget.value = "";
   };
 
@@ -386,19 +394,19 @@ export default function CreatePostClient({
               type="button"
               onClick={openFilePicker}
               disabled={loading} // Add this
-              className="inline-flex items-center gap-8 px-3 rounded-lg bg-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-8 rounded-lg bg-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Add media"
             >
               {/* two icons only — use your svg files in /public/icons */}
-              <div className="w-7 h-7 relative pt-1">
+              {/* <div className="w-7 h-7 relative pt-1">
                 <Image src="/video.svg" alt="video" width={28} height={28} />
-              </div>
+              </div> */}
               <div className="w-6 h-6 relative">
                 <Image src="/photo.svg" alt="photo" width={24} height={24} />
               </div>
             </button>
 
-            {/* <div className="text-sm text-[#6B7280]">Supports images & video (up to 4)</div> */}
+            <div className="text-sm text-[#6B7280] px-3">Supports images (up to 1MB)</div>
           </div>
 
           <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple onChange={onFilesSelected} className="hidden" />

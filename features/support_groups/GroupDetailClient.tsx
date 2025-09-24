@@ -33,6 +33,9 @@ export default function GroupDetailClient({
   const [loading, setLoading] = useState(false);
   const searchParams = useSearchParams();
 
+  // NEW: provide feedback while we navigate to create-post
+  const [creatingPost, setCreatingPost] = useState(false);
+
   // auth / membership - initialize from server if available
   const [currentUser, setCurrentUser] = useState<any | null>(initialCurrentUser ?? null);
   const [isMember, setIsMember] = useState<boolean | null>(initialIsMember ?? null);
@@ -137,8 +140,8 @@ export default function GroupDetailClient({
 
   // Then update the success useEffect to check this flag:
   // In GroupDetailClient.tsx, replace the success useEffect with this:
-// Add console logs to debug
-useEffect(() => {
+  //Add console logs to debug
+  useEffect(() => {
     const s = searchParams?.get("success");
     const pending = searchParams?.get("pending");
     const rejected = searchParams?.get("rejected");
@@ -187,7 +190,7 @@ useEffect(() => {
     if (rejected) {
       alert("Your post was rejected by moderation. Please modify it to meet community guidelines and try again.");
     }
-}, [searchParams?.get("success"), searchParams?.get("pending"), searchParams?.get("rejected")]);
+  }, [searchParams?.get("success"), searchParams?.get("pending"), searchParams?.get("rejected")]);
 
   useEffect(() => {
     let mounted = true;
@@ -337,8 +340,17 @@ useEffect(() => {
     else { /* implement follow logic */ }
   };
 
+  // NEW: navigation with loader
   const goToCreatePost = () => {
-    router.push(`/support-group/${groupId}/create-post`);
+    if (creatingPost) return;
+    setCreatingPost(true);
+    try {
+      // router.push may trigger navigation and unmount this component; the spinner will show until then.
+      router.push(`/support-group/${groupId}/create-post`);
+    } catch (err) {
+      console.error("navigation failed", err);
+      setCreatingPost(false);
+    }
   };
 
   // Filter modal helpers
@@ -712,7 +724,7 @@ useEffect(() => {
                 y: showWideCTA ? 0 : -2,
               }}
               transition={{ type: "spring", stiffness: 260, damping: 28, mass: 0.7 }}
-              className={`fixed bottom-4 ${showWideCTA ? "right-1/2 translate-x-1/2" : "right-4"}  transition-all ease-linear duration-75 z-50 flex items-center justify-center overflow-hidden cursor-pointer`}
+              className={`fixed bottom-4 ${showWideCTA ? "right-1/2 translate-x-1/2" : "right-4"}  transition-all ease-linear duration-75 z-50 flex items-center justify-center overflow-hidden ${creatingPost ? "opacity-80 cursor-not-allowed" : "cursor-pointer"}`}
               style={{
                 height: 44,
                 background: "linear-gradient(90deg,#034EA1 0%, #00B7AC 100%)",
@@ -720,6 +732,8 @@ useEffect(() => {
                 transformOrigin: "center center",
                 boxSizing: "border-box",
               }}
+              disabled={creatingPost}
+              aria-busy={creatingPost}
             >
               {/* shimmer overlay — FIXED: using proper animation */}
               <div
@@ -731,6 +745,16 @@ useEffect(() => {
                   animation: "sgShimmer 2s ease-in-out infinite",
                 }}
               />
+
+              {/* CENTERED SPINNER (shows while navigating) */}
+              {creatingPost && (
+                <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" aria-hidden>
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="white" strokeWidth="3" fill="none" />
+                    <path className="opacity-75" fill="white" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                </div>
+              )}
 
               {/* LEFT ICON */}
               <motion.div
@@ -746,6 +770,7 @@ useEffect(() => {
                   overflow: "hidden",
                   boxSizing: "border-box",
                   marginLeft: showWideCTA ? 6 : 0,
+                  opacity: creatingPost ? 0.2 : 1,
                 }}
                 animate={{
                   width: showWideCTA ? 28 : 0,
@@ -778,7 +803,7 @@ useEffect(() => {
                 }}
                 animate={{
                   maxWidth: showWideCTA ? 118 : 0,
-                  opacity: showWideCTA ? 1 : 0,
+                  opacity: showWideCTA && !creatingPost ? 1 : 0,
                   x: showWideCTA ? 0 : -6,
                 }}
                 transition={{ duration: 0.22 }}
@@ -801,6 +826,7 @@ useEffect(() => {
                   justifyContent: "center",
                   width: 24,
                   height: 24,
+                  opacity: creatingPost ? 0 : 1,
                 }}
               >
                 <motion.svg
@@ -823,6 +849,8 @@ useEffect(() => {
                   <path d="M5 12h14" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </motion.svg>
               </div>
+
+              <span className="sr-only">{creatingPost ? "Opening create post" : "Start a discussion"}</span>
             </motion.button>
           )}
 

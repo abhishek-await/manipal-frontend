@@ -52,33 +52,54 @@ export const authApi = {
   },
 
   // Sign up
-  signup: async (data: SignupFormData, token: {token: string}) => {
-    // console.log("token: ", token.token)
-    const dob = data.dateOfBirth.replaceAll('/','-')
-    const [date,month,year] = dob.split('-')
-    const formattedDOB = `${year}-${month}-${date}`
-    const response = await fetch(`${API_BASE_URL}/accounts/complete-profile`, {
-      method: 'POST',
+  // features/auth/api/auth.api.ts (or where your authApi lives)
+// Replace the existing signup function with this:
+
+  signup: async (data: SignupFormData, token: { token: string }) => {
+    // format DOB -> YYYY-MM-DD
+    const dob = data.dateOfBirth.replaceAll("/", "-");
+    const [date, month, year] = dob.split("-");
+    const formattedDOB = `${year}-${month}-${date}`;
+
+    const res = await fetch(`${API_BASE_URL}/accounts/complete-profile`, {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        "verification_id": token.token,
-        "first_name": data.firstName,
-        "last_name": data.lastName,
-        "email": data.email,
-        "gender": data.gender,
-        "is_referred": data.hasReferralCode,
-        "date_of_birth": formattedDOB
+        verification_id: token.token,
+        first_name: data.firstName,
+        last_name: data.lastName,
+        email: data.email,
+        gender: data.gender,
+        is_referred: data.hasReferralCode,
+        date_of_birth: formattedDOB,
       }),
     });
 
-    if (!response.ok) {
-      throw new Error('Failed to create account');
+    // try to parse body (if any)
+    let body: any = null;
+    try {
+      body = await res.clone().json();
+    } catch (e) {
+      // ignore parsing errors
     }
 
-    return response.json();
+    if (!res.ok) {
+      // Normalize message
+      const message = body?.detail ?? body?.message ?? body?.error ?? "Failed to create account";
+
+      // Throw an error-like object that includes status
+      const err: any = new Error(message);
+      err.status = res.status;
+      err.body = body;
+      throw err;
+    }
+
+    // ok -> return parsed body (or {} if parse failed)
+    return body ?? {};
   },
+
 
   // Check if user exists
   checkUserExists: async (mobileNumber: string) => {

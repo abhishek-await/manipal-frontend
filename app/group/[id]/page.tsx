@@ -90,7 +90,7 @@ export default async function Page(props: PageProps<'/group/[id]'>) {
       if (Array.isArray(res)) {
         initialPosts = res.map((p: any) => ({
           id: String(p.id),
-          avatar: p.avatar_url ?? "/avatars/omar.png",
+          avatar: p.avatar_url ?? "",
           name: p.full_name ?? "Unknown",
           time: p.created_at ?? "2 hours ago",
           title: p.title ?? "Post",

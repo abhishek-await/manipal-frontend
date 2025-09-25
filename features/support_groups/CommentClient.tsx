@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { groupApi } from "@/features/support_groups/api/group.api";
 import { authApi } from "@/features/auth/api/auth.api";
 import PostCard from "@/features/support_groups/components/PostCard";
+import Avatar from "@/components/Avatar";
 
 export type FlatReply = {
   id: string;
@@ -19,6 +20,7 @@ export type FlatReply = {
   likeCount?: number;
   isLiked?: boolean;
   moderationStatus?: 'approved' | 'needs_review' | 'rejected';
+  avatar_url?: string
 };
 
 export default function CommentClient({
@@ -61,6 +63,7 @@ export default function CommentClient({
     likeCount: r.likeCount ?? 0,
     isLiked: r.isLiked ?? false,
     moderationStatus: r.moderationStatus ?? 'approved',
+    avatar_url: r.avatar_url ?? ""
   }));
 
   const [replies, setReplies] = useState<FlatReply[]>(normalizedInitialReplies);
@@ -349,6 +352,7 @@ export default function CommentClient({
       likeCount: 0,
       isLiked: false,
       moderationStatus: 'needs_review',
+      avatar_url: ""
     };
 
     // Insert optimistic item into flattened UI using the clicked id,
@@ -433,6 +437,7 @@ export default function CommentClient({
         likeCount: r.like_count ?? 0,
         isLiked: r.is_liked ?? false,
         moderationStatus: r.moderation_status ?? 'approved',
+        avatar_url: r.avatar_url ?? ""
       });
       
       // Nested replies
@@ -552,7 +557,7 @@ export default function CommentClient({
       <div className="border-b">
         <PostCard
           id={String(initialPost?.id ?? postId)}
-          avatar={initialPost?.avatar_url ?? "/avatars/omar.png"}
+          avatar={initialPost?.avatar_url ?? ""}
           name={initialPost?.full_name ?? "Unknown"}
           time={initialPost?.created_at}
           title={initialPost?.title}
@@ -598,7 +603,8 @@ export default function CommentClient({
                 <div className="p-4">
                   <div className="flex gap-3">
                     <div className="h-10 w-10 rounded-full overflow-hidden">
-                      <Image src="/avatars/omar.png" alt={parent.user_name} width={40} height={40} className="object-cover" />
+                      <Avatar src={parent.avatar_url?.length ? parent.avatar_url : null} name={parent.user_name} size={40} className="object-cover" />
+                      {/* <Image src="/avatars/omar.png" alt={parent.user_name} width={40} height={40} className="object-cover" /> */}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
@@ -653,7 +659,7 @@ export default function CommentClient({
                       <div className="flex -space-x-2 items-center">
                         {children.slice(0, 3).map((c, i) => (
                           <div key={i} className="h-7 w-7 rounded-full ring-2 ring-white overflow-hidden">
-                            <Image src="/avatars/omar.png" alt={c.user_name} width={28} height={28} className="object-cover" />
+                            <Avatar src={children[i].avatar_url?.length ? children[i].avatar_url : null} name={children[i].user_name} size={28} className="flex-shrink-0" />
                           </div>
                         ))}
                       </div>
@@ -673,7 +679,7 @@ export default function CommentClient({
                       return (
                         <div key={child.id} data-reply-id={child.id} className="flex gap-3 items-start">
                           <div className="h-8 w-8 rounded-full overflow-hidden mt-1">
-                            <Image src="/avatars/omar.png" alt={child.user_name} width={32} height={32} className="object-cover" />
+                            <Avatar src={child.avatar_url?.length ? child.avatar_url : null} name={child.user_name} size={32} className="flex-shrink-0" />
                           </div>
 
                           <div className="flex-1 bg-[#F7FAF9] rounded-lg p-3">

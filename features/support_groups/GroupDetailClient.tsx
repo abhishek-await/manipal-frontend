@@ -113,7 +113,7 @@ export default function GroupDetailClient({
         if (!mounted) return;
         const fresh = json.map((p: any) => ({
           id: String(p.id),
-          avatar: p.avatar_url ?? "/avatars/omar.png",
+          avatar: p.avatar_url ?? "",
           name: p.full_name ?? "Unknown",
           time: p.created_at ?? "2 hours ago",
           title: p.title ?? "Post",
@@ -523,7 +523,7 @@ export default function GroupDetailClient({
 
       const newPosts = response.map((p: any) => ({
         id: String(p.id),
-        avatar: p.avatar_url ?? "/avatars/omar.png",
+        avatar: p.avatar_url ?? "",
         name: p.full_name ?? "Unknown",
         time: p.created_at ?? "2 hours ago",
         title: p.title ?? "Post",
@@ -585,7 +585,7 @@ export default function GroupDetailClient({
         const json = await groupApi.getPosts(groupId, 1, 10); // Reset to page 1
         const fresh = json.map((p: any) => ({
           id: String(p.id),
-          avatar: p.avatar_url ?? "/avatars/omar.png",
+          avatar: p.avatar_url ?? "",
           name: p.full_name ?? "Unknown",
           time: p.created_at ?? "2 hours ago",
           title: p.title ?? "Post",

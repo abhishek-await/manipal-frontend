@@ -12,6 +12,7 @@ type ReplyFromApi = {
   is_liked_by_user?: boolean;
   moderation_status?: 'approved' | 'needs_review' | 'rejected';
   replies?: ReplyFromApi[]; // nested replies
+  avatar_url?: string
 };
 
 type PostFromApi = {
@@ -46,6 +47,7 @@ function flattenReplies(apiReplies: ReplyFromApi[] = []) {
     likeCount?: number;
     isLiked?: boolean;
     moderationStatus?: 'approved' | 'needs_review' | 'rejected';
+    avatar_url?: string;
   }> = [];
 
   apiReplies.forEach((r) => {
@@ -60,6 +62,7 @@ function flattenReplies(apiReplies: ReplyFromApi[] = []) {
       likeCount: r.like_count ?? 0,
       isLiked: r.is_liked_by_user ?? false,
       moderationStatus: r.moderation_status ?? 'approved',
+      avatar_url: r.avatar_url ?? ""
     });
 
     if (Array.isArray(r.replies) && r.replies.length > 0) {
@@ -75,6 +78,7 @@ function flattenReplies(apiReplies: ReplyFromApi[] = []) {
           likeCount: nested.like_count ?? 0,
           isLiked: nested.is_liked_by_user ?? false,
           moderationStatus: nested.moderation_status ?? 'approved',
+          avatar_url: nested.avatar_url ?? ""
         })
       );
     }

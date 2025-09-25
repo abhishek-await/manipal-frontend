@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { groupApi } from "@/features/support_groups/api/group.api";
 import { authApi } from "@/features/auth/api/auth.api";
 import { fa } from "zod/locales";
+import Avatar from "@/components/Avatar";
 
 export type PostCardProps = {
   id: string;
@@ -324,9 +325,7 @@ export default function PostCard({
       <CardContent className={`p-2 ${navPending ? "scale-95" : ""}`}>
         {/* Header */}
         <div className="flex items-start gap-3">
-          <div className="flex-shrink-0">
-            <Image src={avatar} alt={name} width={44} height={44} className="rounded-full border" />
-          </div>
+          <Avatar src={avatar.length ? avatar : null} name={name} size={44} className="flex-shrink-0" />
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between">

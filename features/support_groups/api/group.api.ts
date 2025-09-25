@@ -276,8 +276,9 @@ export const groupApi = {
   
   // In your group.api file
   getPosts: async (groupId: string, page: number = 1, limit: number = 10) => {
+    console.log(`groupID: ${groupId}, page: ${page}, limit: ${limit}`)
     const res = await authApi.fetchWithAuth(
-      `${API_BASE_URL}/support-groups/groups/${groupId}/posts?page=${page}&limit=${limit}`,
+      `${API_BASE_URL}/support-groups/groups/${groupId}/posts?page=${page}&page_size=${limit}`,
       {
         method: "GET",
         headers: { 'Content-Type': 'application/json'},

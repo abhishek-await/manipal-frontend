@@ -13,12 +13,11 @@ interface SignUpFormProps {
   token: string;
 }
 
-// Utility: live-format DD/MM/YYYY while typing
 function formatDOB(input: string) {
-  const d = input.replace(/\D/g, "").slice(0, 8); // keep max 8 digits
-  if (d.length <= 2) return d; // D or DD
-  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`; // DD/M or DD/MM
-  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`; // DD/MM/YYYY
+  const d = input.replace(/\D/g, "").slice(0, 8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
+  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
 }
 
 export default function SignUpForm(token: SignUpFormProps) {
@@ -27,6 +26,8 @@ export default function SignUpForm(token: SignUpFormProps) {
     handleSubmit,
     control,
     watch,
+    setError,
+    clearErrors,
     formState: { errors, isSubmitting, isValid, touchedFields, isSubmitted },
     trigger,
   } = useForm<SignupFormData>({
@@ -45,10 +46,12 @@ export default function SignUpForm(token: SignUpFormProps) {
   });
 
   const [showSuccess, setShowSuccess] = useState(false);
+  const [modalContinueLoading, setModalContinueLoading] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [tokenExpired, setTokenExpired] = useState(false);
   const hasReferralCode = watch("hasReferralCode");
   const router = useRouter();
 
-  // Pre-trigger validation when referral toggles (so referralCode error disappears when hidden)
   useEffect(() => {
     void trigger();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -64,32 +67,84 @@ export default function SignUpForm(token: SignUpFormProps) {
   }, [showSuccess]);
 
   const onSubmit = async (data: SignupFormData) => {
+    // clear previous server-side errors
+    setServerError(null);
+    setTokenExpired(false);
+    clearErrors("email");
+
     try {
       const response = await authApi.signup(data, token);
-      await authApi.clearTokens();
-      const access = response.access
-      const refresh = response.refresh
-      await fetch('/api/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      // successful signup
+      await authApi.clearTokens?.();
+      const access = response.access;
+      const refresh = response.refresh;
+      await fetch("/api/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ access, refresh }),
-      })
-      // authApi.saveTokens(response.access, response.refresh);
+      });
       setShowSuccess(true);
-    } catch (error) {
-      console.error("Error SigningUp User: ", error);
+    } catch (err: any) {
+      console.error("Error SigningUp User: ", err);
+
+      // err.status comes from the api wrapper
+      const status = Number(err?.status ?? 0);
+      const message = err?.message ?? "Something went wrong";
+
+      if (status === 409) {
+        // Email already exists -> show inline error on email field
+        setError("email", {
+          type: "server",
+          message: message || "This email is already registered. Try logging in.",
+        });
+      } else if (status === 401) {
+        // Token expired/invalid -> show banner that guides user
+        setTokenExpired(true);
+        setServerError(message || "Verification token expired. Please request a new OTP.");
+      } else {
+        // Generic server error
+        setServerError(message);
+      }
     }
   };
 
   const canSubmit = isValid && !isSubmitting;
 
-  // helpers for conditional UI display:
   const touched = (field: keyof SignupFormData) => Boolean(touchedFields[field]);
   const value = (field: keyof SignupFormData) => watch(field) ?? "";
 
   return (
     <div className="min-h-[100svh] max-w-2xl w-full mx-auto bg-white relative flex flex-col px-5 pt-6 pb-8">
-      {/* Title */}
+      {/* Token-expired banner */}
+      {tokenExpired && (
+        <div className="mb-4 p-3 rounded-md border border-red-200 bg-red-50 text-sm text-red-700">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="font-medium">Verification token expired</div>
+              <div className="text-xs mt-1">
+                Your verification link/token has expired. Please request a new OTP to continue.
+              </div>
+            </div>
+            <div className="flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => router.push("/login")}
+                className="ml-2 inline-flex items-center gap-2 rounded-md border border-red-200 bg-white px-3 py-1 text-sm font-medium text-red-700"
+              >
+                Return to Login
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generic server error (non-field) */}
+      {serverError && !tokenExpired && (
+        <div className="mb-4 p-3 rounded-md border border-yellow-200 bg-yellow-50 text-sm text-yellow-800">
+          {serverError}
+        </div>
+      )}
+
       <h1 className="mt-2 text-[20px] leading-[26px] font-bold text-[#18448A]">Tell us about yourself</h1>
 
       <form onSubmit={handleSubmit(onSubmit)} className="w-full mt-5 space-y-4" noValidate>
@@ -106,11 +161,6 @@ export default function SignUpForm(token: SignUpFormProps) {
             autoComplete="given-name"
             className={`w-full h-12 px-4 rounded-[6px] border border-[#8D8E91] focus:outline-none`}
           />
-          {/* Show helper only after user typed and blurred */}
-          {/* {touched("firstName") && value("firstName") && !errors.firstName && (
-            <p className="mt-1 text-xs text-[#6B7280]">Looks good — we'll call you {value("firstName")}.</p>
-          )} */}
-          {/* Error shows only after touched or submit */}
           {((touched("firstName") && errors.firstName) || (isSubmitted && errors.firstName)) && (
             <p className="mt-1 text-xs text-red-500">{errors.firstName?.message}</p>
           )}
@@ -129,9 +179,6 @@ export default function SignUpForm(token: SignUpFormProps) {
             autoComplete="family-name"
             className={`w-full h-12 px-4 rounded-[6px] border border-[#8D8E91] focus:outline-none`}
           />
-          {/* {touched("lastName") && value("lastName") && !errors.lastName && (
-            <p className="mt-1 text-xs text-[#6B7280]">Thanks — {value("lastName")} is noted.</p>
-          )} */}
           {((touched("lastName") && errors.lastName) || (isSubmitted && errors.lastName)) && (
             <p className="mt-1 text-xs text-red-500">{errors.lastName?.message}</p>
           )}
@@ -151,9 +198,6 @@ export default function SignUpForm(token: SignUpFormProps) {
             autoComplete="email"
             className={`w-full h-12 px-4 rounded-[6px] border border-[#8D8E91] focus:outline-none`}
           />
-          {/* {touched("email") && value("email") && !errors.email && (
-            <p className="mt-1 text-xs text-[#6B7280]">We’ll send important messages to {value("email")}.</p>
-          )} */}
           {((touched("email") && errors.email) || (isSubmitted && errors.email)) && (
             <p className="mt-1 text-xs text-red-500">{errors.email?.message}</p>
           )}
@@ -181,17 +225,12 @@ export default function SignUpForm(token: SignUpFormProps) {
               />
             )}
           />
-          {/* {touched("dateOfBirth") && value("dateOfBirth") && !errors.dateOfBirth && (
-            <p id="dob-help" className="mt-1 text-xs text-[#6B7280]">
-              Entered: {value("dateOfBirth")}
-            </p>
-          )} */}
           {((touched("dateOfBirth") && errors.dateOfBirth) || (isSubmitted && errors.dateOfBirth)) && (
             <p className="mt-1 text-xs text-red-500">{errors.dateOfBirth?.message}</p>
           )}
         </div>
 
-        {/* Gender (responsive buttons) */}
+        {/* Gender */}
         <div className="w-full">
           <label className="block text-[14px] leading-6 font-medium text-[#333333] mb-2">Gender*</label>
           <Controller
@@ -238,7 +277,6 @@ export default function SignUpForm(token: SignUpFormProps) {
           </label>
         </div>
 
-        {/* Referral Code (conditional) */}
         {hasReferralCode && (
           <div className="w-full">
             <label htmlFor="referralCode" className="block text-[14px] leading-6 font-medium text-[#333333] mb-2">
@@ -269,11 +307,20 @@ export default function SignUpForm(token: SignUpFormProps) {
             ${canSubmit ? "bg-gradient-to-r from-[#18448A] to-[#16AF9F] text-white" : "bg-[#D2D5DB] text-[#686969]"}
           `}
         >
-          {isSubmitting ? "Signing Up..." : "Sign Up"}
+          {isSubmitting ? (
+            <span className="inline-flex items-center justify-center gap-2">
+              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" className="opacity-75" />
+              </svg>
+              Signing Up...
+            </span>
+          ) : (
+            "Sign Up"
+          )}
         </button>
       </form>
 
-      {/* Footer link */}
       <p className="mt-6 text-[16px] leading-6 font-medium text-[#333333] text-center">
         Already have an account?{" "}
         <Link href="/login" className="text-[#18448A] hover:underline">
@@ -299,8 +346,24 @@ export default function SignUpForm(token: SignUpFormProps) {
               Your Manipal Community Connect account is now active. You can now register for events, share your thoughts, and create posts!
             </p>
 
-            <button type="button" onClick={() => router.push("/home")} className="w-full h-[54px] rounded-[8px] bg-gradient-to-r from-[#18448A] to-[#16AF9F] text-white text-[16px] leading-[26px] font-medium">
-              Continue
+            <button
+              type="button"
+              onClick={() => { setModalContinueLoading(true); router.push("/home"); }}
+              className="w-full h-[54px] rounded-[8px] bg-gradient-to-r from-[#18448A] to-[#16AF9F] text-white text-[16px] leading-[26px] font-medium"
+              disabled={modalContinueLoading}
+              aria-busy={modalContinueLoading}
+            >
+              {modalContinueLoading ? (
+                <span className="inline-flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                    <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" className="opacity-75" />
+                  </svg>
+                  Continue
+                </span>
+              ) : (
+                "Continue"
+              )}
             </button>
           </div>
         </div>

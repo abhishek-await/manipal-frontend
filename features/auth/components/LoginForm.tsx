@@ -1,4 +1,4 @@
-// features/auth/components/LoginForm.tsx
+// File: features/auth/components/LoginForm.tsx
 "use client";
 
 import Image from "next/image";
@@ -18,6 +18,8 @@ export default function LoginForm() {
   const [otp, setOtp] = useState(["", "", "", ""]);
   const [timeLeft, setTimeLeft] = useState(29);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
   const timerRef = useRef<number | null>(null);
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
 
@@ -67,6 +69,7 @@ export default function LoginForm() {
 
     if (normalized.length === 10) {
       try {
+        setSendingOtp(true);
         // if your backend expects +91 prefix, add it here: `+91${normalized}`
         const response = await authApi.sendOTP(normalized, methodArg ?? method);
         // console.log("Response from handleSendOTP: ", response);
@@ -75,6 +78,9 @@ export default function LoginForm() {
         startTimer(29);
       } catch (error) {
         console.error("Error while sending otp", error);
+      } finally {
+        // if navigation didn't happen, stop the spinner
+        setSendingOtp(false);
       }
     } else {
       console.warn("Phone not valid for sending OTP:", raw, "=>", digits);
@@ -116,6 +122,7 @@ export default function LoginForm() {
     const currentOtp = otpArray ?? otp;
     if (currentOtp.join("").length !== 4) return;
     try {
+      setVerifyingOtp(true);
       const response = await authApi.verifyOTP(normalizedPhone, currentOtp);
       // console.log("Response from handleOtpSubmit: ", response);
       if (!response.user_exists) {
@@ -138,6 +145,7 @@ export default function LoginForm() {
       }
     } catch (error) {
       console.error(error);
+      setVerifyingOtp(false);
     }
   };
 
@@ -146,6 +154,7 @@ export default function LoginForm() {
       setGoogleLoading(true);
       router.push(`${API_BASE_URL}/accounts/google/login`);
     } finally {
+      // if navigation happens this code may not run before unmount — harmless
       setGoogleLoading(false);
     }
   };
@@ -221,14 +230,25 @@ export default function LoginForm() {
             <button
               type="button"
               onClick={() => handleOtpSubmit(otp)}
-              disabled={!isOtpComplete}
+              disabled={!isOtpComplete || verifyingOtp}
+              aria-busy={verifyingOtp}
               className={`w-full h-14 rounded-lg text-lg font-medium mb-2 transition ${
                 isOtpComplete
                   ? "bg-gradient-to-r from-blue-900 to-teal-400 text-white"
                   : "bg-[#D2D5DB] text-[#686969]"
               }`}
             >
-              Continue
+              {verifyingOtp ? (
+                <span className="inline-flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                    <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" className="opacity-75" />
+                  </svg>
+                  Verifying...
+                </span>
+              ) : (
+                "Continue"
+              )}
             </button>
           </div>
         </div>
@@ -294,12 +314,23 @@ export default function LoginForm() {
         <button
           type="button"
           onClick={() => handleSendOTP()}
-          disabled={!isPhoneValid}
+          disabled={!isPhoneValid || sendingOtp}
+          aria-busy={sendingOtp}
           className={`w-full h-14 rounded-lg text-lg font-medium mb-4 transition ${
             isPhoneValid ? "bg-gradient-to-r from-blue-900 to-teal-400 text-white" : "bg-[#D2D5DB] text-[#686969]"
           }`}
         >
-          Sign Up with OTP
+          {sendingOtp ? (
+            <span className="inline-flex items-center justify-center gap-2">
+              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" className="opacity-75" />
+              </svg>
+              Sending...
+            </span>
+          ) : (
+            "Sign Up with OTP"
+          )}
         </button>
 
         <button
@@ -323,3 +354,5 @@ export default function LoginForm() {
     </div>
   );
 }
+
+

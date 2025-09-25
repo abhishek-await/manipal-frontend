@@ -89,13 +89,22 @@ export default function CommentClient({
   const [posting, setPosting] = useState(false);
   const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({});
 
-  const [notification, setNotification] = useState<{
+  const [notifications, setNotifications] = useState<Map<string, {
     message: string;
     type: 'warning' | 'error' | 'success';
-  } | null>(null);
+    timestamp: number;
+  }>>(new Map());
+
 
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+
+  const enterKeyHandledRef = useRef(false);
+
+  const isPostingRef = useRef(false);
+  const lastNotificationRef = useRef<{ message: string; timestamp: number } | null>(null);
+
+  const recentNotificationsRef = useRef<Map<string, number>>(new Map());
 
   // only fetch current user client-side if server didn't hydrate it
   useEffect(() => {
@@ -310,15 +319,25 @@ export default function CommentClient({
 
   // Update the submitReply function to refresh after successful post
   const submitReply = async () => {
+    console.trace('submitReply called');
+    console.log('submit start', { isPosting: isPostingRef.current })
     const content = text.trim();
     if (!content) return;
+    
+    // Prevent double submission
+    if (isPostingRef.current) {
+      console.log('Already posting, skipping duplicate submission');
+      return;
+    }
 
     if (!currentUser) {
       router.push(`/login?next=${encodeURIComponent(`/support-group/${postId}/comment`)}`);
       return;
     }
 
+    isPostingRef.current = true;
     setPosting(true);
+    
     const tempId = `temp-${Date.now()}`;
 
     const optimistic: FlatReply = {
@@ -336,8 +355,7 @@ export default function CommentClient({
     };
 
     setReplies((prev) => insertOptimisticReplyAtCorrectPosition(prev, optimistic, replyToIdImmediate));
-
-    const payload: { content: string; parent_id?: number; replying_to_id?: number } = { content };
+      const payload: { content: string; parent_id?: number; replying_to_id?: number } = { content };
     
     if (replyToIdImmediate) {
       payload.parent_id = Number(replyToIdImmediate);
@@ -354,6 +372,7 @@ export default function CommentClient({
       // Check moderation status from response
       const moderationStatus = created.moderation_status || created.moderationStatus;
       
+      // Show notification only once
       if (moderationStatus === 'rejected') {
         showNotification(
           "Your comment was rejected. Please ensure it follows community guidelines.",
@@ -413,6 +432,10 @@ export default function CommentClient({
       showNotification("Failed to post comment. Please try again.", 'error');
     } finally {
       setPosting(false);
+      // Reset the ref after a short delay
+      setTimeout(() => {
+        isPostingRef.current = false;
+      }, 500);
     }
   };
 
@@ -485,10 +508,32 @@ export default function CommentClient({
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.key === "Enter" && (e.ctrlKey || e.metaKey)) || (e.key === "Enter" && !e.shiftKey && text.trim())) {
+
+    console.trace('enter-key?', enterKeyHandledRef.current)
+    // Only handle Enter key
+    if (e.key !== "Enter") return;
+    
+    // Handle Shift+Enter for new line
+    if (e.shiftKey) return;
+    
+    // Check if there's content
+    if (!text.trim()) {
       e.preventDefault();
-      submitReply();
+      return;
     }
+    
+    // Prevent default and stop propagation immediately
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Check if already posting using the ref
+    if (isPostingRef.current || posting) {
+      console.log('Already posting, ignoring Enter key');
+      return;
+    }
+    
+    // Submit only once
+    submitReply();
   };
 
   const handleShare = async (url?: string, title?: string) => {
@@ -538,43 +583,102 @@ export default function CommentClient({
     return { top, map };
   }, [visibleReplies]);
 
-  const showNotification = (message: string, type: 'warning' | 'error' | 'success' = 'warning') => {
-    setNotification({ message, type });
-    // Auto-hide after 5 seconds
-    setTimeout(() => setNotification(null), 5000);
-  };
+  const showNotification = useCallback((message: string, type: 'warning' | 'error' | 'success' = 'warning') => {
+    const now = Date.now();
+    
+    // Check against the ref for immediate deduplication
+    const lastShown = recentNotificationsRef.current.get(message);
+    if (lastShown && now - lastShown < 2000) {
+      console.log('Duplicate notification blocked (ref check):', message);
+      return;
+    }
+    
+    // Update the ref immediately
+    recentNotificationsRef.current.set(message, now);
+    
+    // Clean up old entries from ref
+    setTimeout(() => {
+      recentNotificationsRef.current.delete(message);
+    }, 2000);
+    
+    setNotifications(prev => {
+      // Additional check against state
+      const existingNotification = Array.from(prev.values()).find(
+        n => n.message === message && now - n.timestamp < 2000
+      );
+      
+      if (existingNotification) {
+        console.log('Duplicate notification blocked (state check):', message);
+        return prev;
+      }
+      
+      const newMap = new Map(prev);
+      const key = `${type}-${Date.now()}-${Math.random()}`;
+      
+      newMap.set(key, { message, type, timestamp: now });
+      
+      // Auto-remove after 5 seconds
+      setTimeout(() => {
+        setNotifications(prev => {
+          const updated = new Map(prev);
+          updated.delete(key);
+          return updated;
+        });
+      }, 5000);
+      
+      return newMap;
+    });
+  }, []);
 
   // Notification Component
   // Add this component before your main return statement
   const NotificationBanner = () => {
-    if (!notification) return null;
-    
-    return (
-      <div className="fixed top-4 left-4 right-4 z-50 animate-slide-down">
-        <div
-          className={`
-            p-4 rounded-lg shadow-lg flex items-start justify-between gap-3
-            ${notification.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' : ''}
-            ${notification.type === 'warning' ? 'bg-yellow-50 text-yellow-800 border border-yellow-200' : ''}
-            ${notification.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : ''}
-          `}
-        >
-          <div className="flex items-start gap-2">
-            {notification.type === 'error' && <span>❌</span>}
-            {notification.type === 'warning' && <span>⚠️</span>}
-            {notification.type === 'success' && <span>✅</span>}
-            <p className="text-sm font-medium">{notification.message}</p>
-          </div>
-          <button
-            onClick={() => setNotification(null)}
-            className="text-gray-400 hover:text-gray-600 text-sm"
-          >
-            ✕
-          </button>
+  const notificationArray = Array.from(notifications.values());
+  if (notificationArray.length === 0) return null;
+  
+  // Keep track of seen messages to avoid duplicates
+  const seenMessages = new Set<string>();
+  const uniqueNotifications: typeof notificationArray = [];
+  
+  // Filter duplicates (keep the most recent)
+  for (let i = notificationArray.length - 1; i >= 0; i--) {
+    const notification = notificationArray[i];
+    if (!seenMessages.has(notification.message)) {
+      seenMessages.add(notification.message);
+      uniqueNotifications.unshift(notification);
+    }
+  }
+  
+  // Show only the most recent notification
+  const notification = uniqueNotifications[uniqueNotifications.length - 1];
+  if (!notification) return null;
+  
+  return (
+    <div className="fixed top-4 left-4 right-4 z-50 animate-slide-down">
+      <div
+        className={`
+          p-4 rounded-lg shadow-lg flex items-start justify-between gap-3
+          ${notification.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' : ''}
+          ${notification.type === 'warning' ? 'bg-yellow-50 text-yellow-800 border border-yellow-200' : ''}
+          ${notification.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : ''}
+        `}
+      >
+        <div className="flex items-start gap-2">
+          {notification.type === 'error' && <span>❌</span>}
+          {notification.type === 'warning' && <span>⚠️</span>}
+          {notification.type === 'success' && <span>✅</span>}
+          <p className="text-sm font-medium">{notification.message}</p>
         </div>
+        <button
+          onClick={() => setNotifications(new Map())}
+          className="text-gray-400 hover:text-gray-600 text-sm"
+        >
+          ✕
+        </button>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
@@ -788,23 +892,37 @@ export default function CommentClient({
         <div className="flex items-center gap-3">
           <textarea
             ref={inputRef}
-                        placeholder={replyToIdImmediate ? `Reply to ${replyingToName ?? "user"}` : "Reply to post"}
+            placeholder={replyToIdImmediate ? `Reply to ${replyingToName ?? "user"}` : "Reply to post"}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={onKeyDown}
+            onKeyPress={(e) => {
+              // Prevent any keypress handling for Enter
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+              }
+            }}
             rows={1}
             className="flex-1 h-12 resize-none rounded-full px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-[#16AF9F]"
           />
 
-          <button
-            onClick={submitReply}
-            disabled={posting || text.trim().length === 0}
-            aria-disabled={posting || text.trim().length === 0}
-            aria-busy={posting}
-            type="button"
-            className="h-12 w-12 rounded-full flex items-center justify-center"
-            title={posting ? "Posting…" : "Send reply"}
-          >
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                submitReply();
+              }}
+              onMouseDown={(e) => {
+                // Prevent focus issues
+                e.preventDefault();
+              }}
+              disabled={posting || text.trim().length === 0}
+              aria-disabled={posting || text.trim().length === 0}
+              aria-busy={posting}
+              type="button"
+              className="h-12 w-12 rounded-full flex items-center justify-center"
+              title={posting ? "Posting…" : "Send reply"}
+            >
             {posting ? (
               <div className="h-5 w-5 rounded-full border-2 border-white border-t-transparent animate-spin" />
             ) : (

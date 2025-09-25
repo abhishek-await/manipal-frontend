@@ -37,14 +37,16 @@ export default function CommentClient({
     is_liked_by_user?: boolean;
     avatar_url?: string;
     reply_count?: number;
+    num_reads?: number;
     attachments?: string[];
+    group_id?: string;
   } | null;
   initialReplies: FlatReply[];
   initialCurrentUser?: any | null;
   postId: string;
 }) {
 
-  console.log("Initial Replies: ", initialReplies)
+  // console.log("Initial Replies: ", initialReplies)
   const router = useRouter();
 
   // normalize server-provided replies: ensure ids and parentIds are strings (or null)
@@ -192,7 +194,7 @@ export default function CommentClient({
 
     // debug
     // eslint-disable-next-line no-console
-    console.log("[startReply] clickedImmediate:", clickedId, "displayParent:", displayParent);
+    // console.log("[startReply] clickedImmediate:", clickedId, "displayParent:", displayParent);
 
     // focus the input
     setTimeout(() => inputRef.current?.focus(), 50);
@@ -366,7 +368,7 @@ export default function CommentClient({
     }
 
     // debug log — inspect in browser console
-    console.log("[submitReply] payload:", payload);
+    // console.log("[submitReply] payload:", payload);
 
     try {
       const created = await groupApi.postReply(postId, payload);
@@ -540,7 +542,7 @@ export default function CommentClient({
     <div className="min-h-screen bg-white flex flex-col">
       {/* Header */}
       <div className="px-4 py-3 border-b bg-white flex items-center gap-3">
-        <button aria-label="Back" onClick={() => router.back()} className="h-8 w-8 flex items-center justify-center rounded-md">
+        <button aria-label="Back" onClick={() => router.push(`/group/${initialPost?.group_id}`)} className="h-8 w-8 flex items-center justify-center rounded-md">
           <Image src="/back.svg" alt="back" width={18} height={18} />
         </button>
         <h1 className="text-lg font-bold text-[#18448A]">Post</h1>
@@ -558,6 +560,7 @@ export default function CommentClient({
           isLiked={isLiked}
           likeCount={likeCount}
           replyCount={replyCount}
+          viewCount={initialPost?.num_reads}
           onToggleLike={handleToggleLike}
           className="rounded-none"
           attachments={initialPost?.attachments}

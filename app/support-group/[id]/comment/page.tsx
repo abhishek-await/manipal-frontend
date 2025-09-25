@@ -22,8 +22,10 @@ type PostFromApi = {
   created_at?: string;
   like_count?: number;
   reply_count?: number;
+  num_reads?: number;
   is_liked_by_user?: boolean;
   avatar_url?: string;
+  group_id?: string;
 };
 
 /**
@@ -134,9 +136,9 @@ export default async function Page(props: PageProps<'/support-group/[id]/comment
   // 2) fetch replies
   const repliesUrl = `${API_BASE}/support-groups/posts/${postId}/replies/`;
   const apiReplies: ReplyFromApi[] | null = (await forwardFetchJson(repliesUrl, "GET")) ?? [];
-  console.log("API Replies: ", apiReplies)
+  // console.log("API Replies: ", apiReplies)
   const flattened = flattenReplies(apiReplies ?? []);
-  console.log("Flattened Replies: ", flattened)
+  // console.log("Flattened Replies: ", flattened)
 
   // 3) server-side fetch current user by forwarding cookies to backend
   let initialCurrentUser: any | null = null;

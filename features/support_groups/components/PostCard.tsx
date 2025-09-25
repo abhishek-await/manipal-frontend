@@ -23,6 +23,7 @@ export type PostCardProps = {
   isLiked?: boolean;
   likeCount?: number;
   replyCount?: number;
+  viewCount?: number;
 
   // optional callback (when provided parent controls the like action)
   onToggleLike?: () => Promise<void> | void;
@@ -48,6 +49,7 @@ export default function PostCard({
   isLiked: isLikedProp,
   likeCount: likeCountProp,
   replyCount: replyCountProp,
+  viewCount,
   onToggleLike,
   onReplyNavigate,
   onShare,
@@ -380,6 +382,11 @@ export default function PostCard({
             <Image src="/chat_bubble.svg" alt="Reply" width={20} height={20} />
             <span className="ml-2 text-[#6B7280]">{replyCountDisplay}</span>
           </button>
+
+          <div className="flex items-center gap-2 text-gray-600 px-2 py-1">
+            <Image src="/visibility.svg" alt="view-count" width={20} height={20}/>
+            <span className="ml-2 text-[#6B7280]">{viewCount}</span>
+          </div>
 
           {/* Share button (already had stopPropagation) */}
           <button

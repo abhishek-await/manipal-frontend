@@ -102,8 +102,8 @@ export default async function Page() {
   const groupsRaw = Array.isArray(rawGroups) ? rawGroups : []
   const apiGroups = groupsRaw.map(mapToCard)
 
-  console.log("groupsRaw: ", groupsRaw)
-  console.log("apiGroups: ", apiGroups)
+  // console.log("groupsRaw: ", groupsRaw)
+  // console.log("apiGroups: ", apiGroups)
 
   const chipItems = apiGroups.length ? buildChipItemsFromGroups(apiGroups) : []
   const stats = apiGroups.length ? buildStatsFromGroups(apiGroups) : { totalGroups: apiGroups.length, totalPatients: 0, totalExperts: 0, totalDiscussions: 0 }

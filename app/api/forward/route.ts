@@ -26,8 +26,8 @@ function isAllowedPath(path: string) {
 
 async function forwardToBackend(path: string, method: string, headers: Record<string, string>, body?: any) {
   const url = `${path}`;
-  console.log("URL: ", url);
-  console.log("headers: ", headers)
+  // console.log("URL: ", url);
+  // console.log("headers: ", headers)
   return await fetch(url, {
     method,
     headers,
@@ -312,7 +312,7 @@ let backendRes = await forwardToBackend(path, method, mergedHeaders, bodyBuffer)
   const contentType = backendRes.headers.get("content-type");
   if (contentType) resp.headers.set("content-type", contentType);
 
-  //  console.log("Response from BE: ", resp)
+  // console.log("Response from BE: ", resp)
 
   return resp;
 }

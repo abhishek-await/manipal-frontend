@@ -1,6 +1,5 @@
 import React from "react";
 import GroupDetailClient from "@/features/support_groups/GroupDetailClient";
-import { groupApi } from "@/features/support_groups/api/group.api";
 import { SupportGroupCardProps } from "@/features/support_groups/components/Card";
 import { cookies } from "next/headers";
 
@@ -13,15 +12,38 @@ export default async function Page(props: PageProps<'/group/[id]'>) {
 
   // read cookies once
   const cookieStore = await cookies();
+  const cookieHeader = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
   const access = cookieStore.get('accessToken')?.value ?? "";
 
+  const serverBase = process.env.NEXT_SERVER_URL ?? `http://localhost:3000`;
+
+  async function forwardFetchJson(path: string, method = 'GET') {
+    try {
+      const payload = { path, method }
+      const res = await fetch(`${serverBase}/api/forward`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(cookieHeader ? { cookie: cookieHeader } : {}),
+        },
+        body: JSON.stringify(payload),
+        cache: 'no-store',
+      })
+      if (!res.ok) return null
+      return await res.json().catch(() => null)
+    } catch (e) {
+      console.error('forwardFetchJson error', e)
+      return null
+    }
+  }
+
   // Fetch group details (server-side) using groupApi.getGroup (which expects an access token param)
-  let rawGroup: any = null;
+  let rawGroup: any = null
   try {
-    rawGroup = await groupApi.getGroup(groupId, access).catch(() => null);
-  } catch (err) {
-    console.error("group fetch error", err);
-    rawGroup = null;
+    rawGroup = await forwardFetchJson(`${API_BASE}/support-groups/groups/${groupId}`, 'GET')
+  } catch (e) {
+    console.warn('Could not fetch group server-side', e)
+    rawGroup = null
   }
 
   const mappedGroup: SupportGroupCardProps = {
@@ -55,22 +77,18 @@ export default async function Page(props: PageProps<'/group/[id]'>) {
   };
 
   // Server-side fetch posts for this group (authenticated if access token exists)
-  const postsUrl = `${API_BASE}/support-groups/groups/${groupId}/posts`;
   let initialPosts: any[] = [];
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (access) headers['Authorization'] = `Bearer ${access}`;
 
-    const res = await fetch(postsUrl, {
-      method: "GET",
-      headers,
-      cache: "no-store",
-    });
+    // const res = await forwardFetchJson(`${serverBase}/support-groups/groups/${groupId}/posts/`,"GET");
+    const res: any = (await forwardFetchJson(`${API_BASE}/support-groups/groups/${groupId}/posts/`, "GET")) ?? [];
 
-    if (res.ok) {
-      const json = await res.json();
-      if (Array.isArray(json)) {
-        initialPosts = json.map((p: any) => ({
+    // console.log("Response SS: ", res)
+
+      if (Array.isArray(res)) {
+        initialPosts = res.map((p: any) => ({
           id: String(p.id),
           avatar: p.avatar_url ?? "/avatars/omar.png",
           name: p.full_name ?? "Unknown",
@@ -81,39 +99,22 @@ export default async function Page(props: PageProps<'/group/[id]'>) {
           isLiked: p.is_liked_by_user,
           likeCount: p.like_count ?? 0,
           replyCount: p.reply_count ?? 0,
+          viewCount: p.num_reads ?? 0,
           attachments: p.attachments ?? [],
         }));
-      }
-    } else {
-      // optionally handle non-ok response
-      console.warn("[posts fetch] non-ok status", res.status);
-    }
+      } 
   } catch (err) {
     console.warn("Error fetching posts server-side", err);
   }
 
   // Server-side: fetch current user (if we have an access token)
   let initialCurrentUser: any | null = null;
-  if (access) {
-    try {
-      const USER_URL = `${API_BASE}/accounts/user`; // adjust if your endpoint differs
-      const userRes = await fetch(USER_URL, {
-        method: "GET",
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${access}`,
-        },
-        cache: "no-store",
-      });
-      if (userRes.ok) {
-        initialCurrentUser = await userRes.json();
-      } else {
-        // if token invalid/expired you might want to ignore (client will handle)
-        console.warn("user fetch non-ok", userRes.status);
-      }
-    } catch (err) {
-      console.warn("Failed to fetch current user server-side", err);
-    }
+  try {
+    const me = await forwardFetchJson(`${API_BASE}/accounts/user`, "GET");
+    initialCurrentUser = me ?? null;
+  } catch (e) {
+    console.warn("Could not fetch current user server-side", e);
+    initialCurrentUser = null;
   }
 
   const initialIsMember = mappedGroup.isMember ?? false;

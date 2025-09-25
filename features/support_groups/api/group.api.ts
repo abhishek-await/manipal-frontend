@@ -274,12 +274,15 @@ export const groupApi = {
 
   },
   
-  getPosts: async (groupId: string) => {
-    // console.log("Get post called")
-    const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/groups/${groupId}/posts`,{
-      method: "GET",
-      headers: { 'Content-Type': 'application/json'},
-    })
+  // In your group.api file
+  getPosts: async (groupId: string, page: number = 1, limit: number = 10) => {
+    const res = await authApi.fetchWithAuth(
+      `${API_BASE_URL}/support-groups/groups/${groupId}/posts?page=${page}&limit=${limit}`,
+      {
+        method: "GET",
+        headers: { 'Content-Type': 'application/json'},
+      }
+    )
 
     if (!res.ok) {
       const text = await res.text().catch(() => '')

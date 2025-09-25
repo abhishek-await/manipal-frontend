@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import SupportGroupCard, { SupportGroupCardProps } from "@/features/support_groups/components/Card";
 import PostCard from "@/features/support_groups/components/PostCard";
 import JoinPromptCard from "@/features/support_groups/components/JoinPromptCard";
@@ -26,7 +26,7 @@ export default function GroupDetailClient({
   groupId: string;
 }) {
 
-  // console.log("Initial Group: ", initialGroup)
+  // console.log("Initial Posts: ", initialPosts)
   const router = useRouter();
   const [group, setGroup] = useState<SupportGroupCardProps | null>(initialGroup);
   const [posts, setPosts] = useState<Post[]>(initialPosts ?? []);
@@ -56,6 +56,11 @@ export default function GroupDetailClient({
 
   const [shareOpen, setShareOpen] = useState(false);
   const [shareData, setShareData] = useState<ShareData | null>(null);
+
+  const [page, setPage] = useState(1);
+  const [hasMorePosts, setHasMorePosts] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // If server didn't provide currentUser, detect on client (only then)
   useEffect(() => {
@@ -117,6 +122,7 @@ export default function GroupDetailClient({
           isLiked: p.is_liked_by_user,
           likeCount: p.like_count ?? 0,
           replyCount: p.reply_count ?? 0,
+          viewCount: p.num_reads ?? 0,
         }));
         setPosts(fresh);
         // remove newPostId param from URL
@@ -501,16 +507,82 @@ export default function GroupDetailClient({
 
   // Replace the existing navigation effect with this enhanced version:
 
+  const loadMorePosts = useCallback(async () => {
+    if (loadingMore || !hasMorePosts) return;
+
+    setLoadingMore(true);
+    try {
+      // Assuming your API supports pagination params
+      const nextPage = page + 1;
+      const response = await groupApi.getPosts(groupId, nextPage, 10); // 10 posts per page
+      
+      if (!response || !Array.isArray(response)) {
+        setHasMorePosts(false);
+        return;
+      }
+
+      const newPosts = response.map((p: any) => ({
+        id: String(p.id),
+        avatar: p.avatar_url ?? "/avatars/omar.png",
+        name: p.full_name ?? "Unknown",
+        time: p.created_at ?? "2 hours ago",
+        title: p.title ?? "Post",
+        excerpt: p.content ?? "",
+        tag: p.tag ?? "General",
+        isLiked: Boolean(p.is_liked_by_user),
+        likeCount: p.like_count ?? 0,
+        replyCount: p.reply_count ?? 0,
+        attachments: p.attachments ?? [],
+        viewCount: p.num_reads ?? 0,
+      }));
+
+      // If we got fewer posts than requested, we've reached the end
+      if (newPosts.length < 10) {
+        setHasMorePosts(false);
+      }
+
+      // Append new posts to existing ones
+      setPosts(prev => [...prev, ...newPosts]);
+      setPage(nextPage);
+    } catch (error) {
+      console.error("Failed to load more posts:", error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [page, hasMorePosts, loadingMore, groupId]);
+
+  // NEW: Intersection Observer for infinite scroll
+  useEffect(() => {
+    if (!loadMoreRef.current || !hasMorePosts) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !loadingMore) {
+          loadMorePosts();
+        }
+      },
+      {
+        root: null,
+        rootMargin: '100px', // Start loading 100px before reaching the bottom
+        threshold: 0.1
+      }
+    );
+
+    observer.observe(loadMoreRef.current);
+
+    return () => {
+      if (loadMoreRef.current) {
+        observer.unobserve(loadMoreRef.current);
+      }
+    };
+  }, [loadMorePosts, hasMorePosts, loadingMore]);
+
   useEffect(() => {
     let mounted = true;
     
     const refreshPosts = async () => {
-      if (!mounted || !currentUser) return;
-      
       try {
-        const json = await groupApi.getPosts(groupId);
-        if (!mounted) return;
-        
+        const json = await groupApi.getPosts(groupId, 1, 10); // Reset to page 1
         const fresh = json.map((p: any) => ({
           id: String(p.id),
           avatar: p.avatar_url ?? "/avatars/omar.png",
@@ -519,13 +591,16 @@ export default function GroupDetailClient({
           title: p.title ?? "Post",
           excerpt: p.content ?? "",
           tag: p.tag ?? "General",
-          isLiked: Boolean(p.is_liked_by_user), // Ensure boolean
+          isLiked: Boolean(p.is_liked_by_user),
           likeCount: p.like_count ?? 0,
           replyCount: p.reply_count ?? 0,
           attachments: p.attachments ?? [],
+          viewCount: p.num_reads ?? 0,
         }));
         
         setPosts(fresh);
+        setPage(1);
+        setHasMorePosts(fresh.length >= 10);
       } catch (err) {
         console.warn("Could not refresh posts", err);
       }
@@ -562,6 +637,69 @@ export default function GroupDetailClient({
       window.removeEventListener('mcc:refresh-posts', handleCustomRefresh);
     };
   }, [currentUser, groupId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let timer: number | null = null;
+
+    const shouldRefreshForPath = (path: string) => {
+      // adjust if your home route is different
+      return path === "/home" || path === "/";
+    };
+
+    const scheduleRefreshIfHome = (source?: string) => {
+      try {
+        // Only refresh if we're now on the home route
+        const path = window.location.pathname;
+        if (!shouldRefreshForPath(path)) return;
+
+        // tiny debounce to let navigation settle (avoid racing with SPA nav)
+        if (timer) {
+          window.clearTimeout(timer);
+          timer = null;
+        }
+        timer = window.setTimeout(() => {
+          try {
+            router.refresh();
+            // optional: console.log to help debug in dev
+            // console.log("router.refresh triggered by", source ?? "unknown");
+          } catch (e) {
+            console.warn("router.refresh failed", e);
+          }
+        }, 60); // 60ms usually enough; increase to 150ms if you see race issues
+      } catch (e) {
+        console.warn("scheduleRefreshIfHome error", e);
+      }
+    };
+
+    // When the page is restored from the bfcache (mobile browsers, back/forward)
+    const onPageShow = (e: PageTransitionEvent) => {
+      // If persisted flag true -> restored from bfcache. We still call refresh anyway.
+      scheduleRefreshIfHome("pageshow");
+    };
+
+    // popstate fires on history navigation (back/forward)
+    const onPopState = () => {
+      scheduleRefreshIfHome("popstate");
+    };
+
+    // visibilitychange can catch some cases where page becomes visible again
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") scheduleRefreshIfHome("visibilitychange");
+    };
+
+    window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("popstate", onPopState);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("popstate", onPopState);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [router]);
 
   return (
     <>
@@ -672,30 +810,56 @@ export default function GroupDetailClient({
 
           {/* Posts area */}
           <div ref={feedRef} className="relative mt-2 px-4 space-y-4 pb-28">
-            {sortedPosts.length === 0 && !loading && (
-              <div className="text-center text-sm text-[#666] py-8">No posts yet.</div>
-            )}
+              {sortedPosts.length === 0 && !loading && (
+                <div className="text-center text-sm text-[#666] py-8">No posts yet.</div>
+              )}
 
-            {sortedPosts.map((p) => (
-              <div key={p.id} className="w-full max-w-2xl mx-auto">
-                <PostCard
-                  id={p.id}
-                  avatar={p.avatar}
-                  name={p.name}
-                  time={p.time}
-                  title={p.title}
-                  excerpt={p.excerpt}
-                  tag={p.tag}
-                  isLiked={Boolean(p.isLiked)}
-                  likeCount={p.likeCount ?? 0}
-                  replyCount={p.replyCount ?? 0}
-                  className="w-full rounded-xl"
-                  onToggleLike={handleToggleLikeForPost(p.id)}
-                  onShare={(postPayload) => openShareForPost(postPayload)}
-                  attachments={p.attachments ?? []}
-                />
-              </div>
-            ))}
+              {sortedPosts.map((p) => (
+                <div key={p.id} className="w-full max-w-2xl mx-auto">
+                  <PostCard
+                    id={p.id}
+                    avatar={p.avatar}
+                    name={p.name}
+                    time={p.time}
+                    title={p.title}
+                    excerpt={p.excerpt}
+                    tag={p.tag}
+                    isLiked={Boolean(p.isLiked)}
+                    likeCount={p.likeCount ?? 0}
+                    replyCount={p.replyCount ?? 0}
+                    viewCount={p.viewCount ?? 0}
+                    className="w-full rounded-xl"
+                    onToggleLike={handleToggleLikeForPost(p.id)}
+                    onShare={(postPayload) => openShareForPost(postPayload)}
+                    attachments={p.attachments ?? []}
+                  />
+                </div>
+              ))}
+
+              {loadingMore && (
+          <div className="flex justify-center py-4">
+            <div className="flex items-center gap-2">
+              <svg className="animate-spin h-5 w-5 text-[#034EA1]" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span className="text-sm text-[#666]">Loading more posts...</span>
+            </div>
+          </div>
+        )}
+
+        {/* NEW: Intersection observer target */}
+        {hasMorePosts && !loadingMore && sortedPosts.length > 0 && (
+          <div ref={loadMoreRef} className="h-10" />
+        )}
+
+        {/* NEW: End of posts message */}
+        {!hasMorePosts && sortedPosts.length > 0 && (
+          <div className="text-center text-sm text-[#666] py-8">
+            You've reached the end of all posts
+          </div>
+        )}
+
 
             {/* Not-logged-in overlay + join prompt */}
             {!currentUser && (

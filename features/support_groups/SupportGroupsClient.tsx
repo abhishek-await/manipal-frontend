@@ -175,6 +175,71 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
     }
   };
 
+  // add inside SupportGroupsClient (client component)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let timer: number | null = null;
+
+    const shouldRefreshForPath = (path: string) => {
+      // adjust if your home route is different
+      return path === "/home" || path === "/";
+    };
+
+    const scheduleRefreshIfHome = (source?: string) => {
+      try {
+        // Only refresh if we're now on the home route
+        const path = window.location.pathname;
+        if (!shouldRefreshForPath(path)) return;
+
+        // tiny debounce to let navigation settle (avoid racing with SPA nav)
+        if (timer) {
+          window.clearTimeout(timer);
+          timer = null;
+        }
+        timer = window.setTimeout(() => {
+          try {
+            router.refresh();
+            // optional: console.log to help debug in dev
+            // console.log("router.refresh triggered by", source ?? "unknown");
+          } catch (e) {
+            console.warn("router.refresh failed", e);
+          }
+        }, 60); // 60ms usually enough; increase to 150ms if you see race issues
+      } catch (e) {
+        console.warn("scheduleRefreshIfHome error", e);
+      }
+    };
+
+    // When the page is restored from the bfcache (mobile browsers, back/forward)
+    const onPageShow = (e: PageTransitionEvent) => {
+      // If persisted flag true -> restored from bfcache. We still call refresh anyway.
+      scheduleRefreshIfHome("pageshow");
+    };
+
+    // popstate fires on history navigation (back/forward)
+    const onPopState = () => {
+      scheduleRefreshIfHome("popstate");
+    };
+
+    // visibilitychange can catch some cases where page becomes visible again
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") scheduleRefreshIfHome("visibilitychange");
+    };
+
+    window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("popstate", onPopState);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("popstate", onPopState);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [router]);
+
+
   return (
     <div className="min-h-screen w-full bg-white flex flex-col">
       <main className="w-full flex justify-center">

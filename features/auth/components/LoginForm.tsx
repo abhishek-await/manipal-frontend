@@ -1,12 +1,11 @@
-// File: features/auth/components/LoginForm.tsx
-"use client";
-
+"use client"
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { authApi, methodType } from "../api/auth.api";
 import { API_BASE_URL } from "../api/auth.api";
+import { useSearchParams } from "next/navigation";
 
 export type Step = "mobile" | "otp";
 
@@ -22,6 +21,9 @@ export default function LoginForm() {
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const timerRef = useRef<number | null>(null);
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  const searchParams = useSearchParams();
+  const nextUrl = searchParams.get('next');
 
   useEffect(() => {
     return () => stopTimer();
@@ -124,7 +126,7 @@ export default function LoginForm() {
     try {
       setVerifyingOtp(true);
       const response = await authApi.verifyOTP(normalizedPhone, currentOtp);
-      // console.log("Response from handleOtpSubmit: ", response);
+      
       if (!response.user_exists) {
         setStep("mobile");
       } else {
@@ -137,10 +139,21 @@ export default function LoginForm() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ access, refresh }),
           })
-          // authApi.saveTokens(response.tokens.access, response.tokens.refresh);
-          router.push("/home");
+          
+          // Check for next URL and redirect accordingly
+          if (nextUrl) {
+            // Decode and redirect to the intended page
+            router.push(decodeURIComponent(nextUrl));
+          } else {
+            // Default redirect to home
+            router.push("/home");
+          }
         } else {
-          router.push(`/signup?token=${encodeURIComponent(response.verification_id)}`);
+          // Also pass the next parameter to signup if needed
+          const signupUrl = nextUrl 
+            ? `/signup?token=${encodeURIComponent(response.verification_id)}&next=${encodeURIComponent(nextUrl)}`
+            : `/signup?token=${encodeURIComponent(response.verification_id)}`;
+          router.push(signupUrl);
         }
       }
     } catch (error) {

@@ -91,25 +91,21 @@ export default function PostCard({
   const handleLikeInternal = async () => {
     if (pending) return;
 
-    const current = await authApi.getCurrentUser().catch(() => null);
-    if (!current) {
-      router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
-      return;
-    }
-
-    setLikedLocal((l) => !l);
+    // Immediate optimistic update
+    const wasLiked = likedLocal;
+    const previousCount = likeCountLocal;
+    
+    setLikedLocal(!wasLiked);
+    setLikeCountLocal(wasLiked ? Math.max(previousCount - 1, 0) : previousCount + 1);
     setPending(true);
-
-    // optimistic like count change
-    setLikeCountLocal((c) => (likedLocal ? Math.max(c - 1, 0) : c + 1));
 
     try {
       await groupApi.likePost(String(id));
     } catch (err) {
-      // rollback
+      // Rollback on error
       console.error("like failed", err);
-      setLikedLocal(false);
-      setLikeCountLocal((c) => (c > 0 ? c - 1 : 0));
+      setLikedLocal(wasLiked);
+      setLikeCountLocal(previousCount);
     } finally {
       setPending(false);
     }
@@ -120,12 +116,6 @@ export default function PostCard({
     if (pending) return;
 
     if (isControlledLike) {
-      // quick auth check
-      const current = await authApi.getCurrentUser().catch(() => null);
-      if (!current) {
-        router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
-        return;
-      }
       setPending(true);
       try {
         await onToggleLike!();
@@ -137,7 +127,6 @@ export default function PostCard({
       return;
     }
 
-    // fallback to internal handler
     return handleLikeInternal();
   };
 
@@ -153,22 +142,12 @@ export default function PostCard({
     }
 
     const href = `/support-group/${id}/comment`;
-
-    // try {
-    //   // best-effort prefetch
-    //   router.prefetch?.(href);
-    // } catch {}
-
-    // show spinner/feedback before navigating
     setNavPending(true);
 
-    // let the browser paint the spinner (one frame) before navigation
     await new Promise((resolve) => {
-      // use requestAnimationFrame to ensure a paint occurs
       if (typeof window !== "undefined" && "requestAnimationFrame" in window) {
         window.requestAnimationFrame(() => resolve(null));
       } else {
-        // fallback microtask
         setTimeout(() => resolve(null), 0);
       }
     });
@@ -176,7 +155,6 @@ export default function PostCard({
     try {
       router.push(href);
     } finally {
-      // safety fallback: if navigation doesn't unmount quickly, clear after short timeout
       setTimeout(() => setNavPending(false), 1500);
     }
   };
@@ -252,12 +230,6 @@ export default function PostCard({
   // --- New: handle clicking the card (navigate to comments) with feedback ---
   const onCardActivate = async () => {
     if (navPending || showFullContent) return;
-    // quick auth check to match reply behavior
-    const current = await authApi.getCurrentUser().catch(() => null);
-    if (!current) {
-      router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
-      return;
-    }
 
     try {
       onReplyNavigate?.();
@@ -266,17 +238,11 @@ export default function PostCard({
     }
 
     const href = commentHref;
-    // try {
-    //   router.prefetch?.(href);
-    // } catch {}
-
-    // Show navigation feedback
     setNavPending(true);
+    
     try {
       router.push(href);
     } finally {
-      // keep navPending true briefly; Next router will unmount this component on navigation,
-      // but as a safe fallback clear it after a short timeout (no blocking).
       setTimeout(() => setNavPending(false), 1500);
     }
   };
@@ -368,12 +334,12 @@ export default function PostCard({
             disabled={pending || navPending}
             aria-pressed={isLikedDisplay}
             aria-label={isLikedDisplay ? "Liked" : "Like"}
-            className="flex items-center text-gray-600 px-2 py-1 disabled:opacity-60"
+            className="flex items-center text-gray-600 px-2 py-1 disabled:opacity-60 transition-all duration-200 active:scale-95"
           >
-            <div className="h-5 w-5">
+            <div className={`h-5 w-5 transition-all duration-200 ${isLikedDisplay ? 'like-animation' : ''}`}>
               {isLikedDisplay ? <FavoriteFilledIcon className="h-full w-full" /> : <FavoriteOutlineIcon className="h-full w-full" />}
             </div>
-            <span className="ml-2 text-[#6B7280]">{likeCountDisplay}</span>
+            <span className="ml-2 text-[#6B7280] transition-all duration-200">{likeCountDisplay}</span>
           </button>
 
           {/* Reply (keeps its stopPropagation inside handler) */}

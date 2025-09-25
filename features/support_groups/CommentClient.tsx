@@ -8,6 +8,7 @@ import { groupApi } from "@/features/support_groups/api/group.api";
 import { authApi } from "@/features/auth/api/auth.api";
 import PostCard from "@/features/support_groups/components/PostCard";
 import Avatar from "@/components/Avatar";
+import { useCallback } from "react";
 
 export type FlatReply = {
   id: string;
@@ -88,6 +89,11 @@ export default function CommentClient({
   const [posting, setPosting] = useState(false);
   const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({});
 
+  const [notification, setNotification] = useState<{
+    message: string;
+    type: 'warning' | 'error' | 'success';
+  } | null>(null);
+
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
 
@@ -110,41 +116,17 @@ export default function CommentClient({
     };
   }, [initialCurrentUser]);
 
-  // // flatten helper in case you need to re-flatten API replies on client (keeps normalization)
-  // function flattenRepliesClient(apiReplies: any[] = []): FlatReply[] {
-  //   const out: FlatReply[] = [];
-  //   (apiReplies || []).forEach((r: any) => {
-  //     out.push({
-  //       id: String(r.id),
-  //       content: r.content,
-  //       created_at: r.created_at,
-  //       user_name: r.user_name ?? r.user?.name ?? "Unknown",
-  //       parentId: null,
-  //       replyingTo: null,
-  //       replyingToId: null,
-  //       likeCount: r.like_count ?? 0,
-  //       isLiked: r.is_liked ?? false,
-  //       moderationStatus: r.moderation_status ?? 'approved',
-  //     });
-  //     if (Array.isArray(r.replies) && r.replies.length > 0) {
-  //       r.replies.forEach((nested: any) =>
-  //         out.push({
-  //           id: String(nested.id),
-  //           content: nested.content,
-  //           created_at: nested.created_at,
-  //           user_name: nested.user_name ?? nested.user?.name ?? "Unknown",
-  //           parentId: String(r.id),
-  //           replyingTo: r.user_name ?? r.user?.name ?? null,
-  //           replyingToId: String(r.id),
-  //           likeCount: nested.like_count ?? 0,
-  //           isLiked: nested.is_liked ?? false,
-  //           moderationStatus: nested.moderation_status ?? 'approved',
-  //         })
-  //       );
-  //     }
-  //   });
-  //   return out;
-  // }
+  useEffect(() => {
+    // Wait for initial user check to complete
+    if (currentUser === null && !initialCurrentUser) {
+      // Small delay to ensure the check is complete
+      const timer = setTimeout(() => {
+        router.push(`/login?next=${encodeURIComponent(`/support-group/${postId}/comment`)}`);
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [currentUser, initialCurrentUser, router, postId]);
 
   // grouped view (top-level + map of children). comparisons use String(...)
   const grouped = useMemo(() => {
@@ -331,7 +313,6 @@ export default function CommentClient({
     const content = text.trim();
     if (!content) return;
 
-    // require auth
     if (!currentUser) {
       router.push(`/login?next=${encodeURIComponent(`/support-group/${postId}/comment`)}`);
       return;
@@ -340,13 +321,12 @@ export default function CommentClient({
     setPosting(true);
     const tempId = `temp-${Date.now()}`;
 
-    // Optimistic reply uses replyDisplayParentId (string) for UI grouping only
     const optimistic: FlatReply = {
       id: tempId,
       content,
       created_at: new Date().toISOString(),
       user_name: currentUser?.full_name ?? currentUser?.user_name ?? "You",
-      parentId: replyDisplayParentId, // UI grouping only
+      parentId: replyDisplayParentId,
       replyingTo: replyingToName ?? null,
       replyingToId: replyingToUserId ?? null,
       likeCount: 0,
@@ -355,32 +335,46 @@ export default function CommentClient({
       avatar_url: ""
     };
 
-    // Insert optimistic item into flattened UI using the clicked id,
-    // so it appears under the correct coarse thread.
     setReplies((prev) => insertOptimisticReplyAtCorrectPosition(prev, optimistic, replyToIdImmediate));
 
-    // Build payload
     const payload: { content: string; parent_id?: number; replying_to_id?: number } = { content };
     
     if (replyToIdImmediate) {
       payload.parent_id = Number(replyToIdImmediate);
     }
     
-    // If we're replying to a nested comment, also include replying_to_id
     if (replyingToUserId && replyDisplayParentId && replyingToUserId !== replyDisplayParentId) {
       payload.replying_to_id = Number(replyingToUserId);
     }
 
-    // debug log — inspect in browser console
-    // console.log("[submitReply] payload:", payload);
-
     try {
       const created = await groupApi.postReply(postId, payload);
       const createdId = String(created.id ?? created.pk ?? created._id ?? Date.now());
+      
+      // Check moderation status from response
+      const moderationStatus = created.moderation_status || created.moderationStatus;
+      
+      if (moderationStatus === 'rejected') {
+        showNotification(
+          "Your comment was rejected. Please ensure it follows community guidelines.",
+          'error'
+        );
+      } else if (moderationStatus === 'needs_review') {
+        showNotification(
+          "Your comment has been posted and is pending review by moderators.",
+          'warning'
+        );
+      } else if (moderationStatus === 'approved') {
+        showNotification(
+          "Your comment has been posted successfully!",
+          'success'
+        );
+      }
 
-      // Instead of manually updating, refresh the entire replies list
+      // Refresh replies to get the actual data from server
       await fetchReplies();
 
+      // Dispatch event
       try {
         if (typeof window !== "undefined") {
           window.dispatchEvent(
@@ -390,32 +384,33 @@ export default function CommentClient({
           );
         }
       } catch (e) {
-        // non-fatal; ignore
         console.warn("reply-created dispatch failed", e);
       }
 
-      // cleanup UI state
+      // Clear form
       setText("");
       setReplyToIdImmediate(null);
       setReplyDisplayParentId(null);
       setReplyingToName(null);
       setReplyingToUserId(null);
 
-      // scroll to created reply in DOM after refresh
+      // Scroll to created reply
       setTimeout(() => {
         const node = listRef.current?.querySelector<HTMLElement>(`[data-reply-id="${createdId}"]`);
         if (node) node.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 100); // Slightly longer delay to ensure DOM is updated
+      }, 100);
     } catch (err: any) {
-      // rollback optimistic
+      // Remove optimistic reply
       setReplies((r) => r.filter((it) => it.id !== tempId));
+      
       if (err?.message?.toLowerCase().includes("unauthorized")) {
         authApi.clearTokens?.();
         router.push(`/login?next=${encodeURIComponent(`/support-group/${postId}/comment`)}`);
         return;
       }
+      
       console.error("post reply failed", err);
-      alert("Could not post reply. Try again.");
+      showNotification("Failed to post comment. Please try again.", 'error');
     } finally {
       setPosting(false);
     }
@@ -543,8 +538,48 @@ export default function CommentClient({
     return { top, map };
   }, [visibleReplies]);
 
+  const showNotification = (message: string, type: 'warning' | 'error' | 'success' = 'warning') => {
+    setNotification({ message, type });
+    // Auto-hide after 5 seconds
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  // Notification Component
+  // Add this component before your main return statement
+  const NotificationBanner = () => {
+    if (!notification) return null;
+    
+    return (
+      <div className="fixed top-4 left-4 right-4 z-50 animate-slide-down">
+        <div
+          className={`
+            p-4 rounded-lg shadow-lg flex items-start justify-between gap-3
+            ${notification.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' : ''}
+            ${notification.type === 'warning' ? 'bg-yellow-50 text-yellow-800 border border-yellow-200' : ''}
+            ${notification.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : ''}
+          `}
+        >
+          <div className="flex items-start gap-2">
+            {notification.type === 'error' && <span>❌</span>}
+            {notification.type === 'warning' && <span>⚠️</span>}
+            {notification.type === 'success' && <span>✅</span>}
+            <p className="text-sm font-medium">{notification.message}</p>
+          </div>
+          <button
+            onClick={() => setNotification(null)}
+            className="text-gray-400 hover:text-gray-600 text-sm"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-white flex flex-col">
+
+      <NotificationBanner />
       {/* Header */}
       <div className="px-4 py-3 border-b bg-white flex items-center gap-3">
         <button aria-label="Back" onClick={() => router.push(`/group/${initialPost?.group_id}`)} className="h-8 w-8 flex items-center justify-center rounded-md">

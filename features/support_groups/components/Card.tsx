@@ -213,7 +213,7 @@ export default function SupportGroupCard({
              focus:outline-none focus:ring-2 focus:ring-[#16AF9F] 
              transition-all duration-150 ease-out
              ${isNavigating ? 'scale-[0.98] opacity-70' : 'hover:scale-[1.01] active:scale-[0.99]'}`
-          : "w-full rounded-[12px] overflow-hidden bg-white shadow-sm",
+          : "w-full  overflow-hidden bg-white",
         className
       )}
       style={{

@@ -767,7 +767,7 @@ export default function GroupDetailClient({
 
       <div className="min-h-screen bg-white flex justify-center py-4">
         <div className="w-full max-w-2xl relative">
-          <div className="mt-3 px-4">
+          <div className="mt-3 shadow-sm pb-5">
             {group ? (
               <SupportGroupCard
                 {...group}
@@ -782,46 +782,44 @@ export default function GroupDetailClient({
             ) : (
               <div className="h-[200px] flex items-center justify-center text-sm text-gray-500">Loading group…</div>
             )}
-          </div>
-
-          {/* Moderators & Experts + Stats (kept) */}
-          <div className="mt-4 px-4">
-            <h2 className="text-[20px] font-bold text-[#18448A]">Moderators & Experts</h2>
-            <div className="mt-4 space-y-3">
-              <div className="w-full mx-auto p-3 border border-[#E5E7EB] rounded-lg bg-white flex items-start gap-3">
-                <div className="w-12 h-12 rounded-full bg-[#06AD9B1f] flex items-center justify-center">
-                  <Image src="/avatars/dr1.png" alt="Dr Sarah" width={44} height={44} className="rounded-full object-cover" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <div className="font-bold text-[#333333] text-sm">Dr. Sarah Johnson</div>
-                    <div className="text-xs text-[#16AF9F] bg-[#ECFDF6] px-2 py-0.5 rounded-full">Verified</div>
+            {/* Moderators & Experts + Stats (kept) */}
+            <div className="mt-4 px-4">
+              <h2 className="text-[20px] font-bold text-[#18448A]">Moderators & Experts</h2>
+              <div className="mt-4 space-y-3 border border-[#E5E7EB] rounded-lg bg-white">
+                <div className="w-full mx-auto p-3 flex items-start gap-3">
+                  <div className="w-12 h-12 rounded-full bg-[#06AD9B1f] flex items-center justify-center">
+                    <Image src="/avatars/dr1.png" alt="Dr Sarah" width={44} height={44} className="rounded-full object-cover" />
                   </div>
-                  <div className="text-xs text-[#333333]">Endocrinologies</div>
-                  <div className="text-xs text-[#54555A] mt-1">15+ years experience</div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <div className="font-bold text-[#333333] text-sm">Dr. Sarah Johnson</div>
+                      <div className="text-xs text-[#16AF9F] bg-[#ECFDF6] px-2 py-0.5 rounded-full">Verified</div>
+                    </div>
+                    <div className="text-xs text-[#333333]">Endocrinologies</div>
+                    <div className="text-xs text-[#54555A] mt-1">15+ years experience</div>
+                  </div>
                 </div>
-              </div>
 
-              <div className="w-full mx-auto p-3 border border-[#E5E7EB] rounded-lg bg-white flex items-start gap-3">
-                <div className="w-12 h-12 rounded-full bg-[#06AD9B1f] flex items-center justify-center">
-                  <Image src="/avatars/dr2.png" alt="Dr Sandeep" width={44} height={44} className="rounded-full object-cover" />
-                </div>
-                <div className="min-w-0">
-                  <div className="font-bold text-[#333333] text-sm">Dr. Sandeep Sharma</div>
-                  <div className="text-xs text-[#333333]">Cardiologist</div>
-                  <div className="text-xs text-[#54555A] mt-1">8+ years experience</div>
+                <div className="w-full mx-auto p-3 flex items-start gap-3">
+                  <div className="w-12 h-12 rounded-full bg-[#06AD9B1f] flex items-center justify-center">
+                    <Image src="/avatars/dr2.png" alt="Dr Sandeep" width={44} height={44} className="rounded-full object-cover" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-[#333333] text-sm">Dr. Sandeep Sharma</div>
+                    <div className="text-xs text-[#333333]">Cardiologist</div>
+                    <div className="text-xs text-[#54555A] mt-1">8+ years experience</div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-
-          <div className="mt-4 px-4">
-            <GroupStatsCard
-              postsThisWeek={group?.totalPosts ?? 45}
-              activeMembers={group?.members ?? 340}
-              monthlyGrowth={group?.growthPercentage ?? "12%"}
-              expertSessions={group?.experts ?? 8}
-            />
+            <div className="mt-4 px-4">
+              <GroupStatsCard
+                postsThisWeek={group?.totalPosts ?? 45}
+                activeMembers={group?.members ?? 340}
+                monthlyGrowth={group?.growthPercentage ?? "12%"}
+                expertSessions={group?.experts ?? 8}
+              />
+            </div>
           </div>
 
           {/* Feed header with Filter button */}
@@ -1218,11 +1216,9 @@ function StatTile({
 }) {
   return (
     <div className="flex items-center gap-3 p-2 rounded-lg bg-white">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#ECFDF6]">
-        <div className="h-6 w-6">
-          <Image src={iconSrc} alt={iconAlt} width={24} height={24} className="object-contain" />
+        <div className="h-11 w-11">
+          <Image src={iconSrc} alt={iconAlt} width={44} height={44} className="object-contain" />
         </div>
-      </div>
 
       <div className="min-w-0">
         <div className="text-[20px] font-semibold text-[#111827]">{number}</div>

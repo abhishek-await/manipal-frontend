@@ -926,7 +926,7 @@ export default function CommentClient({
               }
             }}
             rows={1}
-            className="flex-1 h-12 resize-none rounded-full px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-[#16AF9F] border border-black"
+            className="flex-1 h-12 resize-none rounded-full px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-[#16AF9F] border border-black overflow-y-hidden"
           />
 
             <button

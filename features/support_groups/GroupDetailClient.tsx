@@ -508,6 +508,9 @@ export default function GroupDetailClient({
   // Replace the existing navigation effect with this enhanced version:
 
   const loadMorePosts = useCallback(async () => {
+
+    if(!currentUser) return;
+
     if (loadingMore || !hasMorePosts) return;
 
     setLoadingMore(true);
@@ -553,7 +556,7 @@ export default function GroupDetailClient({
 
   // NEW: Intersection Observer for infinite scroll
   useEffect(() => {
-    if (!loadMoreRef.current || !hasMorePosts) return;
+    if (!loadMoreRef.current || !hasMorePosts || !currentUser) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -575,7 +578,7 @@ export default function GroupDetailClient({
         observer.unobserve(loadMoreRef.current);
       }
     };
-  }, [loadMorePosts, hasMorePosts, loadingMore]);
+  }, [loadMorePosts, hasMorePosts, loadingMore, currentUser]);
 
   useEffect(() => {
     let mounted = true;
@@ -600,7 +603,7 @@ export default function GroupDetailClient({
         
         setPosts(fresh);
         setPage(1);
-        setHasMorePosts(fresh.length >= 10);
+        setHasMorePosts(currentUser ? fresh.length >= 10 : false);
       } catch (err) {
         console.warn("Could not refresh posts", err);
       }
@@ -836,25 +839,25 @@ export default function GroupDetailClient({
                 </div>
               ))}
 
-              {loadingMore && (
-          <div className="flex justify-center py-4">
-            <div className="flex items-center gap-2">
-              <svg className="animate-spin h-5 w-5 text-[#034EA1]" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              <span className="text-sm text-[#666]">Loading more posts...</span>
-            </div>
-          </div>
-        )}
+              {currentUser && loadingMore && (
+                <div className="flex justify-center py-4">
+                  <div className="flex items-center gap-2">
+                    <svg className="animate-spin h-5 w-5 text-[#034EA1]" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    <span className="text-sm text-[#666]">Loading more posts...</span>
+                  </div>
+                </div>
+              )}
 
         {/* NEW: Intersection observer target */}
-        {hasMorePosts && !loadingMore && sortedPosts.length > 0 && (
+        {currentUser && hasMorePosts && !loadingMore && sortedPosts.length > 0 && (
           <div ref={loadMoreRef} className="h-10" />
         )}
 
         {/* NEW: End of posts message */}
-        {!hasMorePosts && sortedPosts.length > 0 && (
+        {currentUser && !hasMorePosts && sortedPosts.length > 0 && (
           <div className="text-center text-sm text-[#666] py-8">
             You've reached the end of all posts
           </div>

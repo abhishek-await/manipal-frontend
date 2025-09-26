@@ -37,7 +37,6 @@ export default async function Page(props: PageProps<'/group/[id]'>) {
     }
   }
 
-  // Fetch group details (server-side) using groupApi.getGroup (which expects an access token param)
   let rawGroup: any = null
   try {
     rawGroup = await forwardFetchJson(`${API_BASE}/support-groups/groups/${groupId}`, 'GET')
@@ -45,6 +44,8 @@ export default async function Page(props: PageProps<'/group/[id]'>) {
     console.warn('Could not fetch group server-side', e)
     rawGroup = null
   }
+
+  console.log("Raw Group from Server: ", rawGroup)
 
   const mappedGroup: SupportGroupCardProps = {
     id: rawGroup?.id ?? groupId,

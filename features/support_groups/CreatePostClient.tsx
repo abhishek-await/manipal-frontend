@@ -139,7 +139,7 @@ export default function CreatePostClient({
     e?.preventDefault();
 
     if (!currentUser) {
-      router.push(`/login?next=${encodeURIComponent(`/support-groups/${groupId}/create-post`)}`);
+      router.push(`/login?next=${encodeURIComponent(`/support-group/${groupId}/create-post`)}`);
       return;
     }
 
@@ -207,12 +207,23 @@ export default function CreatePostClient({
       console.error("Create post failed", err);
       // Only set loading to false on error
       setLoading(false);
-      
-      if (err?.message?.toLowerCase().includes("unauthorized")) {
-        authApi.clearTokens?.();
-        router.push(`/login?next=${encodeURIComponent(`/support-groups/${groupId}/create-post`)}`);
+
+      // If backend returns 403 -> user must join the group to post
+      if (err?.status === 403 || (typeof err?.message === "string" && err.message.includes("403"))) {
+        setRejectionMessage("You must join this group to create a post. Join the group to participate.");
+        // Scroll to top so banner is visible
+        setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 20);
         return;
       }
+
+      // If token expired / unauthorized -> clear tokens and redirect to login
+      if (err?.message?.toLowerCase().includes("unauthorized")) {
+        authApi.clearTokens?.();
+        router.push(`/login?next=${encodeURIComponent(`/support-group/${groupId}/create-post`)}`);
+        return;
+      }
+
+      // generic fallback
       alert("Failed to create post. Please try again.");
     }
     // Remove the finally block entirely
@@ -233,6 +244,37 @@ export default function CreatePostClient({
     // small delay because some mobile keyboards briefly fire blur
     setTimeout(() => setKeyboardOpen(false), 150);
   };
+
+    // Attempt to join the group (called from the rejection banner)
+  const handleJoinFromCreate = async () => {
+    // provide quick feedback
+    setRejectionMessage(null);
+    setLoading(true);
+    try {
+      await groupApi.joinGroup(groupId);
+      // After joining, send the user back to the create page so they can retry.
+      // Use the same path you used for login->next above to be consistent.
+      router.push(`/support-group/${groupId}/create-post`);
+    } catch (err: any) {
+      console.error("Join from create failed", err);
+      // If user is unauthorized, redirect to login (shouldn't normally happen)
+      if (err?.message?.toLowerCase().includes("unauthorized")) {
+        authApi.clearTokens?.();
+        router.push(`/login?next=${encodeURIComponent(`/support-group/${groupId}/create-post`)}`);
+        return;
+      }
+
+      // If it's a 403 or other server-side issue, show a friendly message
+      if (err?.status === 403 || (typeof err?.message === "string" && err.message.includes("403"))) {
+        setRejectionMessage("You cannot join this group at this time. Please try again later.");
+      } else {
+        setRejectionMessage("Failed to join the group. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   return (
     <div className="min-h-screen bg-white flex flex-col relative">
@@ -269,7 +311,7 @@ export default function CreatePostClient({
         className="flex-1 overflow-auto pt-14 pb-8 px-4"
         style={{ paddingBottom: keyboardOpen ? 260 : undefined }}
       >
-        {rejectionMessage && (
+                {rejectionMessage && (
           <div className="mb-4 mx-auto p-3 border border-[#F1C0C0] bg-[#FFF5F5] rounded-lg text-sm text-[#7A1F1F]">
             <div className="font-semibold mb-1">Post needs changes</div>
             <div>{rejectionMessage}</div>
@@ -277,6 +319,17 @@ export default function CreatePostClient({
               <button onClick={() => setRejectionMessage(null)} className="px-3 py-1 rounded bg-white border text-sm">
                 Dismiss
               </button>
+
+              {/* Show Join CTA when message suggests membership requirement */}
+              {(rejectionMessage || "").toLowerCase().includes("join") && (
+                <button
+                  onClick={handleJoinFromCreate}
+                  disabled={loading}
+                  className="px-3 py-1 rounded bg-[#18448A] text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {loading ? "Joining…" : "Join group"}
+                </button>
+              )}
             </div>
           </div>
         )}

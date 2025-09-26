@@ -234,10 +234,21 @@ export default function CommentClient({
         console.error("Reply like failed", err);
         // Rollback on error
         setReplies(prevReplies);
+
+        // If 403 -> user is not allowed (likely must join group)
+        if (err?.status === 403 || (typeof err?.message === 'string' && err.message.includes('403'))) {
+          showNotification("You need to join this group to like comments. Join the group to participate.", 'warning');
+          return;
+        }
+
         if (err?.message?.toLowerCase().includes("unauthorized")) {
           authApi.clearTokens?.();
           router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+          return;
         }
+
+        // otherwise, generic fallback
+        showNotification("Failed to like comment. Please try again.", 'error');
       } finally {
         setReplyLikePending(prev => ({ ...prev, [replyId]: false }));
       }
@@ -421,13 +432,18 @@ export default function CommentClient({
     } catch (err: any) {
       // Remove optimistic reply
       setReplies((r) => r.filter((it) => it.id !== tempId));
-      
+
+      if (err?.status === 403 || (typeof err?.message === 'string' && err.message.includes('403'))) {
+        showNotification("You must join this group to comment. Join the group to participate.", 'warning');
+        return;
+      }
+
       if (err?.message?.toLowerCase().includes("unauthorized")) {
         authApi.clearTokens?.();
         router.push(`/login?next=${encodeURIComponent(`/support-group/${postId}/comment`)}`);
         return;
       }
-      
+
       console.error("post reply failed", err);
       showNotification("Failed to post comment. Please try again.", 'error');
     } finally {
@@ -497,13 +513,19 @@ export default function CommentClient({
       console.error("like failed", err);
       setIsLiked(prevLiked);
       setLikeCount(prevCount);
+
+      if (err?.status === 403 || (typeof err?.message === 'string' && err.message.includes('403'))) {
+        showNotification("You must join this group to like this post. Join the group to participate.", 'warning');
+        return;
+      }
+
       if (err?.message?.toLowerCase().includes("unauthorized")) {
         authApi.clearTokens?.();
         router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
         return;
       }
-    } finally {
-      setLikePending(false);
+
+      showNotification("Failed to like the post. Please try again.", 'error');
     }
   };
 

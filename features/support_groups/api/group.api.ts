@@ -164,14 +164,18 @@ export const groupApi = {
     const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/posts/${postId}/like/`,{
       method: "POST",
       headers: { 'Content-Type': 'application/json',},
-    })
+    });
 
     if (!res.ok) {
-      const text = await res.text().catch(() => '')
-      throw new Error(`Error liking post: ${res.status} ${text}`)
+      const text = await res.text().catch(() => '');
+      // attach status/body to the Error object for callers to inspect
+      const err: any = new Error(`Error liking post: ${res.status} ${text}`);
+      err.status = res.status;
+      err.body = text;
+      throw err;
     }
 
-    return res.json()
+    return res.json();
   },
 
   // features/support_groups/api/group.api.ts (replace createPost implementation)
@@ -255,23 +259,21 @@ export const groupApi = {
   },
 
   postReply: async (postId: string, data: {content: string, parent_id?: number, replying_to_id?: number}) => {
-    // console.log("Body: ", JSON.stringify(data))
     const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/posts/${postId}/reply/`,{
       method: "POST",
       headers: { 'Content-Type': 'application/json'},
       body: JSON.stringify(data) 
-    })
+    });
 
     if (!res.ok) {
-      const text = await res.text().catch(() => '')
-      throw new Error(`Error replying to post: ${res.status} ${text}`)
+      const text = await res.text().catch(() => '');
+      const err: any = new Error(`Error replying to post: ${res.status} ${text}`);
+      err.status = res.status;
+      err.body = text;
+      throw err;
     }
 
-
-    // console.log("Response: ", res)
-
-    return res.json()
-
+    return res.json();
   },
   
   // In your group.api file
@@ -318,13 +320,16 @@ export const groupApi = {
     const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/replies/${replyId}/like/`,{
       method: "POST",
       headers: { 'Content-Type': 'application/json',},
-    })
+    });
 
     if (!res.ok) {
-      const text = await res.text().catch(() => '')
-      throw new Error(`Error liking reply: ${res.status} ${text}`)
+      const text = await res.text().catch(() => '');
+      const err: any = new Error(`Error liking reply: ${res.status} ${text}`);
+      err.status = res.status;
+      err.body = text;
+      throw err;
     }
 
-    return res.json()
-  }
+    return res.json();
+  },
 };

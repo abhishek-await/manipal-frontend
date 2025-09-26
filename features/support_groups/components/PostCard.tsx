@@ -31,7 +31,7 @@ export type PostCardProps = {
 
   // optional callback to notify parent when user navigates to comment page
   // parent can use this to update reply counts / analytics etc.
-  onReplyNavigate?: () => void;
+  onReplyNavigate?: () => boolean | Promise<boolean> | void;
   onShare?: (payload: { id: string; title?: string; excerpt?: string; tag?: string[] }) => void;
   attachments?: string[],
   showFullContent?: boolean,
@@ -72,6 +72,47 @@ export default function PostCard({
   // For display, use props if controlled, local state if not
   const isLikedDisplay = isControlledLike ? !!isLikedProp : likedLocal;
   const likeCountDisplay = isControlledLike ? (likeCountProp ?? 0) : likeCountLocal;
+
+  // helper: call parent handler and interpret its return value.
+  // returns true if parent handled navigation (so PostCard shouldn't navigate)
+  const callOnReplyNavigate = async (): Promise<boolean> => {
+    if (typeof onReplyNavigate !== "function") return false;
+
+    try {
+      const res = onReplyNavigate();
+
+      // If parent returned a Promise, await it
+      if (res && typeof (res as any).then === "function") {
+        // show loader while awaiting parent navigation
+        setNavPending(true);
+        try {
+          const awaited = await (res as Promise<any>);
+          // if awaited is truthy (e.g., true), treat as handled
+          return Boolean(awaited);
+        } finally {
+          // if parent triggered navigation via router.push, component may unmount.
+          // clear navPending guard after a short safety delay in case parent did not navigate.
+          setTimeout(() => setNavPending(false), 1500);
+        }
+      }
+
+      // If parent returned a truthy value synchronously, treat it as handled.
+      if (res) {
+        setNavPending(true);
+        // clear after a safety delay if it doesn't unmount
+        setTimeout(() => setNavPending(false), 1500);
+        return true;
+      }
+
+      // undefined / false -> not handled
+      return false;
+    } catch (err) {
+      console.warn("onReplyNavigate threw", err);
+      setNavPending(false);
+      return false;
+    }
+  };
+
 
   useEffect(() => {
     if (!isControlledLike) {
@@ -130,16 +171,18 @@ export default function PostCard({
     return handleLikeInternal();
   };
 
-  // When user clicks reply we notify parent (optional) and navigate to comment page.
- // inside your PostCard component (replace the old handleReply)
+  // inside your PostCard component (replace the old handleReply)
   const handleReply = async (e: React.MouseEvent) => {
     e.stopPropagation();
 
+    // Ask parent to handle navigation; if it returns true, stop here.
+    const handledByParent = await callOnReplyNavigate();
+    if (handledByParent) return;
+
+    // Fallback: internal navigation behavior
     try {
-      onReplyNavigate?.();
-    } catch (err) {
-      console.warn("onReplyNavigate failed", err);
-    }
+      onReplyNavigate?.(); // keep notification if parent wants to be informed
+    } catch (err) { console.warn("onReplyNavigate failed", err); }
 
     const href = `/support-group/${id}/comment`;
     setNavPending(true);
@@ -158,6 +201,30 @@ export default function PostCard({
       setTimeout(() => setNavPending(false), 1500);
     }
   };
+
+
+  const onCardActivate = async () => {
+    if (navPending || showFullContent) return;
+
+    const handledByParent = await callOnReplyNavigate();
+    if (handledByParent) return;
+
+    // fallback internal navigation
+    try {
+      onReplyNavigate?.();
+    } catch (err) { console.warn("onReplyNavigate failed", err); }
+
+    const href = commentHref;
+    setNavPending(true);
+
+    try {
+      router.push(href);
+    } finally {
+      setTimeout(() => setNavPending(false), 1500);
+    }
+  };
+
+
 
   // --- PREFETCH on hover/focus (new) ---
   // const prefetchedRef = useRef(false);
@@ -228,24 +295,35 @@ export default function PostCard({
   const attSrc = buildAttachmentSrc(attachments?.[0]);
 
   // --- New: handle clicking the card (navigate to comments) with feedback ---
-  const onCardActivate = async () => {
-    if (navPending || showFullContent) return;
+  //   const onCardActivate = async () => {
+  //   if (navPending || showFullContent) return;
 
-    try {
-      onReplyNavigate?.();
-    } catch (err) {
-      console.warn("onReplyNavigate failed", err);
-    }
+  //   // If parent provided onReplyNavigate, give parent a chance to handle card activation (e.g. membership-guarded navigation).
+  //   if (typeof onReplyNavigate === "function") {
+  //     try {
+  //       onReplyNavigate();
+  //     } catch (err) {
+  //       console.warn("onReplyNavigate failed", err);
+  //     }
+  //     return; // do not run internal navigation
+  //   }
 
-    const href = commentHref;
-    setNavPending(true);
-    
-    try {
-      router.push(href);
-    } finally {
-      setTimeout(() => setNavPending(false), 1500);
-    }
-  };
+  //   try {
+  //     onReplyNavigate?.();
+  //   } catch (err) {
+  //     console.warn("onReplyNavigate failed", err);
+  //   }
+
+  //   const href = commentHref;
+  //   setNavPending(true);
+
+  //   try {
+  //     router.push(href);
+  //   } finally {
+  //     setTimeout(() => setNavPending(false), 1500);
+  //   }
+  // };
+
 
   const handleCardClick = (e: React.MouseEvent) => {
     // If user clicked a control (button/input) we should not navigate;
@@ -343,8 +421,8 @@ export default function PostCard({
           </button>
 
           {/* Reply (keeps its stopPropagation inside handler) */}
-          <button className="flex items-center gap-2 text-gray-600 px-2 py-1" onClick={handleReply} aria-label="Open comments">
-            <Image src="/chat_bubble.svg" alt="Reply" width={20} height={20} />
+          <button className="flex items-center gap-2 text-gray-600 px-2 py-1" onClick={handleReply} disabled={navPending || showFullContent} aria-label="Open comments">
+            <Image src="/chat_bubble.svg" alt="Reply" width={18} height={18} />
             <span className="ml-2 text-[#6B7280]">{replyCountDisplay}</span>
           </button>
 
@@ -397,7 +475,7 @@ export default function PostCard({
 
         {/* nav feedback overlay (spinner) */}
         {navPending ? (
-          <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+          <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none ">
             <div className="rounded-full bg-white/80 p-2 shadow">
               <Spinner />
             </div>

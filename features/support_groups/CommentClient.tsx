@@ -654,7 +654,7 @@ export default function CommentClient({
   if (!notification) return null;
   
   return (
-    <div className="fixed top-4 left-4 right-4 z-50 animate-slide-down">
+    <div className="fixed bottom-18 left-4 right-4 z-50 animate-slide-up">
       <div
         className={`
           p-4 rounded-lg shadow-lg flex items-start justify-between gap-3
@@ -683,7 +683,6 @@ export default function CommentClient({
   return (
     <div className="min-h-screen bg-white flex flex-col">
 
-      <NotificationBanner />
       {/* Header */}
       <div className="px-4 py-3 border-b bg-white flex items-center gap-3">
         <button aria-label="Back" onClick={() => router.push(`/group/${initialPost?.group_id}`)} className="h-8 w-8 flex items-center justify-center rounded-md">
@@ -719,6 +718,8 @@ export default function CommentClient({
         </div>
         <div className="mt-1 text-[18px] font-bold">Most Recent</div>
       </div>
+
+      <NotificationBanner />
 
       {/* Comments list */}
       <div className="flex-1 overflow-auto px-4 py-2 pb-32" ref={listRef}>

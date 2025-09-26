@@ -62,6 +62,10 @@ export default function GroupDetailClient({
   const [loadingMore, setLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
+  const [showJoinRequiredModal, setShowJoinRequiredModal] = useState(false);
+  const [joinRequiredAction, setJoinRequiredAction] = useState<"create" | "like" | "comment" | null>(null);
+  const [joinRequiredMeta, setJoinRequiredMeta] = useState<any>(null); // optional extra data (e.g., target post id)
+
   // If server didn't provide currentUser, detect on client (only then)
   useEffect(() => {
     if (initialCurrentUser) return; // server already hydrated user — skip client fetch
@@ -349,15 +353,21 @@ export default function GroupDetailClient({
   // NEW: navigation with loader
   const goToCreatePost = () => {
     if (creatingPost) return;
-    setCreatingPost(true);
-    try {
-      // router.push may trigger navigation and unmount this component; the spinner will show until then.
-      router.push(`/support-group/${groupId}/create-post`);
-    } catch (err) {
-      console.error("navigation failed", err);
-      setCreatingPost(false);
-    }
+
+    // guard: require membership
+    const ok = requireMemberOrShowPrompt(() => {
+      setCreatingPost(true);
+      try {
+        router.push(`/support-group/${groupId}/create-post`);
+      } catch (err) {
+        console.error("navigation failed", err);
+        setCreatingPost(false);
+      }
+    }, { type: "create" });
+
+    if (!ok) return;
   };
+
 
   // Filter modal helpers
   const openFilter = () => setFilterOpen(true);
@@ -456,6 +466,10 @@ export default function GroupDetailClient({
   /** Controlled like handler factory — parent-controlled optimistic update */
   const handleToggleLikeForPost = (postId: string) => {
     return async () => {
+      // guard membership
+      const ok = requireMemberOrShowPrompt(undefined, { type: "like", postId });
+      if (!ok) return;
+
       const prevPost = posts.find((p) => String(p.id) === String(postId));
       if (!prevPost) return;
 
@@ -467,23 +481,23 @@ export default function GroupDetailClient({
 
       // Optimistic update
       setPosts((ps) =>
-        ps.map((p) => 
-          String(p.id) === String(postId) 
-            ? { ...p, isLiked: nextLiked, likeCount: nextCount } 
+        ps.map((p) =>
+          String(p.id) === String(postId)
+            ? { ...p, isLiked: nextLiked, likeCount: nextCount }
             : p
         )
       );
 
       try {
         const response = await groupApi.likePost(String(postId));
-        
+
         // Update with server response
         if (response && typeof response === 'object') {
           setPosts((ps) =>
-            ps.map((p) => 
-              String(p.id) === String(postId) 
-                ? { 
-                    ...p, 
+            ps.map((p) =>
+              String(p.id) === String(postId)
+                ? {
+                    ...p,
                     isLiked: Boolean(response.liked ?? nextLiked),
                     likeCount: Number(response.like_count ?? nextCount)
                   }
@@ -495,15 +509,16 @@ export default function GroupDetailClient({
         console.error("like api failed, rolling back", err);
         // Rollback
         setPosts((ps) =>
-          ps.map((p) => 
-            String(p.id) === String(postId) 
-              ? { ...p, isLiked: prevLiked, likeCount: prevCount } 
+          ps.map((p) =>
+            String(p.id) === String(postId)
+              ? { ...p, isLiked: prevLiked, likeCount: prevCount }
               : p
           )
         );
       }
     };
   };
+
 
   // Replace the existing navigation effect with this enhanced version:
 
@@ -704,6 +719,28 @@ export default function GroupDetailClient({
     };
   }, [router]);
 
+    // require membership -> if ok run onPass. If not, either redirect to login or show join modal.
+  const requireMemberOrShowPrompt = (onPass?: () => void, meta?: any) => {
+    // if not logged in, go to login (preserve existing next behaviour)
+    if (!currentUser) {
+      router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`);
+      return false;
+    }
+
+    // if logged in but not a member -> show join-required modal
+    if (!isMember) {
+      setJoinRequiredMeta(meta ?? null);
+      setJoinRequiredAction((meta && meta.type) ?? null); // optional
+      setShowJoinRequiredModal(true);
+      return false;
+    }
+
+    // allowed
+    if (onPass) onPass();
+    return true;
+  };
+
+
   return (
     <>
       {/* success overlays (rendered above everything) */}
@@ -835,6 +872,13 @@ export default function GroupDetailClient({
                     onToggleLike={handleToggleLikeForPost(p.id)}
                     onShare={(postPayload) => openShareForPost(postPayload)}
                     attachments={p.attachments ?? []}
+                    // NEW: handle open comments with membership guard
+                    onReplyNavigate={() => {
+                      return requireMemberOrShowPrompt(
+                        () => router.push(`/support-group/${p.id}/comment`),
+                        { type: "comment", postId: p.id }
+                      );
+                    }}
                   />
                 </div>
               ))}
@@ -924,7 +968,8 @@ export default function GroupDetailClient({
               )}
 
               {/* LEFT ICON */}
-              <motion.div
+              {!creatingPost && 
+                <motion.div
                 style={{
                   height: 28,
                   width: 28,
@@ -951,6 +996,7 @@ export default function GroupDetailClient({
                   <path d="M5 12h14" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </motion.div>
+              }
 
               {/* LABEL */}
               <motion.span
@@ -1085,7 +1131,7 @@ export default function GroupDetailClient({
                     onClick={() => setSelectedFilter("trending")}
                     className={`w-full text-left rounded-lg px-4 py-3 border ${selectedFilter === "trending" ? "border-[#18448A] bg-white text-[#18448A]" : "border-[#E5E7EB] bg-white text-[#333333]"}`}
                   >
-                    Top Trending
+                    Trending
                   </button>
                 </div>
 
@@ -1103,7 +1149,26 @@ export default function GroupDetailClient({
           </div>
         )}
       </div>
-    <ShareSheet open={shareOpen} onClose={() => { setShareOpen(false); setShareData(null); }} data={shareData} /> 
+      <JoinRequiredModal
+        open={showJoinRequiredModal}
+        onClose={() => setShowJoinRequiredModal(false)}
+        onJoin={async () => {
+          // close modal then run existing join flow
+          setShowJoinRequiredModal(false);
+          await handleJoinAction();
+          // optional: if user attempted a specific action before joining, you can resume it here
+          // e.g., if (joinRequiredMeta?.postId && joinRequiredMeta.type === "comment") router.push(...)
+          if (joinRequiredMeta?.type === "comment" && joinRequiredMeta?.postId) {
+            router.push(`/support-group/${groupId}/post/${joinRequiredMeta.postId}/comment`);
+          } else if (joinRequiredMeta?.type === "create") {
+            router.push(`/support-group/${groupId}/create-post`);
+          } else if (joinRequiredMeta?.type === "like") {
+            // nothing to do — the optimistic like was blocked; user can click again
+          }
+        }}
+        actionLabel={joinRequiredAction === "create" ? "create a post" : joinRequiredAction === "comment" ? "view comments" : joinRequiredAction === "like" ? "like a post" : null}
+      />
+      <ShareSheet open={shareOpen} onClose={() => { setShareOpen(false); setShareData(null); }} data={shareData} /> 
     </>
   );
 }
@@ -1115,7 +1180,7 @@ function GroupStatsCard({
   monthlyGrowth = "12%",
   expertSessions = 8,
   postsIcon = "/groups.svg",
-  membersIcon = "/users.svg",
+  membersIcon = "/users.svg", 
   growthIcon = "/experts.svg",
   expertIcon = "/discussions.svg",
 }: {
@@ -1321,5 +1386,56 @@ function SuccessToast({ image, onClose }: { image?: string | null, onClose?: () 
         </div>
       </div>
     </motion.div>
+  );
+}
+
+
+function JoinRequiredModal({
+  open,
+  onClose,
+  onJoin,
+  actionLabel,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onJoin: () => Promise<void> | void;
+  actionLabel?: string | null;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[95] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative z-10 w-[92%] max-w-sm bg-white rounded-xl p-5 shadow-lg">
+        <h3 className="text-lg font-semibold text-[#18448A]">Join to participate</h3>
+        <p className="mt-2 text-sm text-[#555]">
+          To {actionLabel ?? "perform this action"} you need to join this group. Would you like to join now?
+        </p>
+
+        <div className="mt-4 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 h-11 rounded-lg border border-[#E5E7EB] bg-white text-sm"
+          >
+            Cancel
+          </button>
+
+          <button
+            onClick={() => {
+              // call join action (may be async)
+              try {
+                const res = onJoin();
+                if (res && typeof (res as any).then === "function") (res as Promise<any>).catch(() => {});
+              } catch (e) {
+                // ignore
+              }
+            }}
+            className="flex-1 h-11 rounded-lg text-white text-sm"
+            style={{ background: "linear-gradient(90deg,#18448A 0%, #16AF9F 85%)" }}
+          >
+            Join group
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

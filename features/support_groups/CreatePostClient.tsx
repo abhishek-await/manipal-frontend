@@ -404,40 +404,6 @@ export default function CreatePostClient({
             </div>
           )}
 
-          {/* tags row - ONLY once, placed above media controls */}
-          {/* <div className="flex items-center gap-3 border-t border-b border-[#F1F5F9] py-3">
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 relative">
-                <Image src="/tag.svg" alt="tag icon" width={18} height={18} />
-              </div>
-            </div>
-
-            <div className="flex-1">
-              <button
-                type="button"
-                onClick={() => setTagSheetOpen(true)}
-                disabled={loading}
-                className="text-sm text-[#6B7280] text-left w-full disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {selectedCategories.length === 0 ? (
-                  <>
-                    What's this post about?{" "}
-                    <span className="text-[#16AF9F]">Choose a tag</span>
-                  </>
-                ) : (
-                  <div className="flex gap-2 flex-wrap">
-                    {selectedCategories.map((c) => (
-                      <span key={c.id} className="text-sm px-3 py-1 rounded-full bg-[#F0F7FF] border border-[#E7F0FF] text-[#084EA5]">
-                        {c.name}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </button>
-            </div>
-
-          </div> */}
-
           {/* media controls (no text — only photo/video icons) */}
           <div className="flex items-center">
             <button
@@ -447,10 +413,6 @@ export default function CreatePostClient({
               className="inline-flex items-center gap-4 rounded-lg bg-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Add media"
             >
-              {/* two icons only — use your svg files in /public/icons */}
-              {/* <div className="w-7 h-7 relative pt-1">
-                <Image src="/video.svg" alt="video" width={28} height={28} />
-              </div> */}
               <div className="w-6 h-6 relative">
                 <Image src="/photo.svg" alt="photo" width={24} height={24} />
               </div>
@@ -463,50 +425,6 @@ export default function CreatePostClient({
           {/* submit remains only in the header — removed bottom submit */}
         </form>
       </main>
-
-      {/* Tag bottom sheet */}
-      {/* {tagSheetOpen && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setTagSheetOpen(false)} />
-          <div className="absolute left-0 right-0 bottom-0 bg-white rounded-t-2xl p-4" style={{ boxShadow: "0 -20px 30px rgba(0,0,0,0.12)" }}>
-            <div className="w-full max-w-[420px] mx-auto">
-              <h4 className="text-[16px] font-semibold text-[#111827] mb-3">Add Tags</h4>
-
-              <div className="space-y-3 max-h-[50vh] overflow-auto pr-2">
-                {categories.map((c) => {
-                  const checked = selectedTagIds.includes(c.id);
-                  return (
-                    <div key={c.id} className="flex items-start justify-between gap-3 py-2 border-b border-[#F1F5F9]">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-[#074EA5]">{c.name}</div>
-                        <div className="text-xs text-[#6B7280] mt-1">{c.description}</div>
-                      </div>
-                      <div className="flex items-center">
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input type="checkbox" checked={checked} onChange={() => toggleTag(c.id)} className="sr-only" />
-                          <span className={`w-10 h-6 flex items-center rounded-full p-1 transition ${checked ? "bg-[#8D8E91]" : "bg-[#E2E3E3]"}`} aria-hidden>
-                            <span className={`${checked ? "bg-[#FFFFFF]" : "bg-[#8D8E91]"} w-4 h-4 rounded-full shadow transform transition ${checked ? "translate-x-4" : ""}`} />
-                          </span>
-                        </label>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="mt-4">
-                <button
-                  onClick={() => applyTagsFromSheet(selectedTagIds)}
-                  className="w-full h-12 rounded-lg text-white font-medium"
-                  style={{ background: "linear-gradient(90deg, #18448A 0%, #16AF9F 85%)" }}
-                >
-                  Apply
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )} */}
     </div>
   );
 }

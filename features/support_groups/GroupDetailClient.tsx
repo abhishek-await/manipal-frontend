@@ -47,6 +47,8 @@ export default function GroupDetailClient({
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [successImage, setSuccessImage] = useState<string | null>(null);
 
+  const [successStatus, setSuccessStatus] = useState<'approved' | 'pending' | null>(null);
+
   // filtering UI state
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<"latest" | "oldest" | "trending">("latest");
@@ -143,64 +145,63 @@ export default function GroupDetailClient({
     return () => { mounted = false; };
   }, [searchParams, groupId]);
 
-  // detect success query param and show success overlay + toast sequence
-  // in GroupDetailClient.tsx — replace the success-useEffect block with the following
-  // In GroupDetailClient.tsx, add this state after your other state declarations:
   const [successShown, setSuccessShown] = useState(false);
 
-  // Then update the success useEffect to check this flag:
-  // In GroupDetailClient.tsx, replace the success useEffect with this:
-  //Add console logs to debug
   useEffect(() => {
     const s = searchParams?.get("success");
     const pending = searchParams?.get("pending");
     const rejected = searchParams?.get("rejected");
     const imgParam = searchParams?.get("successImage");
-    
+
     console.log("Success effect running:", { s, pending, rejected });
-    
     if (!s && !pending && !rejected) return;
-    
-    // Clean URL immediately
-    const url = new URL(window.location.href);
-    url.searchParams.delete("success");
-    url.searchParams.delete("pending");
-    url.searchParams.delete("rejected");
-    url.searchParams.delete("successImage");
-    url.searchParams.delete("newPostId");
-    window.history.replaceState({}, "", url.toString());
-    
+
+    // Set internal state first (so toast doesn't need to read URL)
+    if (pending) {
+      setSuccessStatus("pending");
+      setShowSuccessToast(true);
+      // clear toast & status after timeout
+      setTimeout(() => {
+        setShowSuccessToast(false);
+        setSuccessStatus(null);
+      }, 3000);
+    }
+
     if (s) {
-      console.log("Showing success overlay");
+      setSuccessStatus("approved");
       setSuccessImage(imgParam);
       setShowSuccessFull(true);
-      
-      // Hide full overlay after 1.2s
+
+      // Hide full overlay after 1.2s, then show toast
       setTimeout(() => {
-        console.log("Hiding success overlay, showing toast");
         setShowSuccessFull(false);
         setShowSuccessToast(true);
-        
-        // Hide toast after 2.5s
         setTimeout(() => {
-          console.log("Hiding toast");
           setShowSuccessToast(false);
           setSuccessImage(null);
+          setSuccessStatus(null);
         }, 2500);
       }, 1200);
     }
-    
-    if (pending) {
-      setShowSuccessToast(true);
-      setTimeout(() => {
-        setShowSuccessToast(false);
-      }, 3000);
-    }
-    
+
     if (rejected) {
+      // you can also set successStatus('rejected') if you want a toast variant
       alert("Your post was rejected by moderation. Please modify it to meet community guidelines and try again.");
     }
-  }, [searchParams?.get("success"), searchParams?.get("pending"), searchParams?.get("rejected")]);
+
+    // Clean URL (we can safely remove params now that state is captured)
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("success");
+      url.searchParams.delete("pending");
+      url.searchParams.delete("rejected");
+      url.searchParams.delete("successImage");
+      url.searchParams.delete("newPostId");
+      window.history.replaceState({}, "", url.toString());
+    } catch (e) {
+      /* ignore */
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     let mounted = true;
@@ -745,11 +746,11 @@ export default function GroupDetailClient({
     <>
       {/* success overlays (rendered above everything) */}
       {/* In the JSX where you render the overlays */}
-  {showSuccessFull && <SuccessOverlay image={successImage} onClose={() => setShowSuccessFull(false)} />}
-  {showSuccessToast && <SuccessToast image={successImage} onClose={() => setShowSuccessToast(false)} />}
+        {showSuccessFull && <SuccessOverlay image={successImage} onClose={() => setShowSuccessFull(false)} />}
+        {showSuccessToast && <SuccessToast image={successImage} status={successStatus} onClose={() => { setShowSuccessToast(false); setSuccessStatus(null); }} />}
 
-      {/* Add global styles for shimmer animation */}
-      <style dangerouslySetInnerHTML={{
+        {/* Add global styles for shimmer animation */}
+        <style dangerouslySetInnerHTML={{
         __html: `
           @keyframes sgShimmer {
             0% {
@@ -1294,14 +1295,6 @@ function SuccessOverlay({ image, onClose }: { image?: string | null; onClose?: (
           </svg>
         </motion.div>
 
-        {/* optional image below the check */}
-        {/* {image ? (
-          <div style={{ width: 220, maxHeight: 220, marginBottom: 16, borderRadius: 10, overflow: "hidden" }}>
-            <img src={image} alt="shared" style={{ width: "100%", height: "auto", display: "block", objectFit: "cover" }} />
-          </div>
-        ) : null} */}
-
-        {/* message text */}
         <div
           style={{
             fontFamily: "'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial",
@@ -1321,9 +1314,8 @@ function SuccessOverlay({ image, onClose }: { image?: string | null; onClose?: (
 }
 
 
-function SuccessToast({ image, onClose }: { image?: string | null, onClose?: () => void }) {
-  const pending = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("pending");
-  const text = pending ? "Your post is pending review" : "Your post has been shared in the group feed";
+function SuccessToast({ image, onClose, status }: { image?: string | null, status?: 'approved' | 'pending' | null, onClose?: () => void }) {
+  const text = status === "pending" ? "Your post is pending review" : "Your post has been shared in the group feed";
   return (
     <motion.div
       initial={{ y: 32, opacity: 0 }}

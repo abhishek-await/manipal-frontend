@@ -5,6 +5,7 @@ import Image from "next/image";
 import clsx from "clsx";
 import { useEffect, useState, startTransition } from "react";
 import { useRouter } from "next/navigation";
+import { GroupStatsCard } from "../GroupDetailClient";
 // import MemberBadge from "./MemberBadge";
 
 type Avatar = { src: string; alt?: string };
@@ -100,6 +101,7 @@ export default function SupportGroupCard({
   onShare,
   href,
   joinAnimation,
+  totalPosts
 }: SupportGroupCardProps) {
   const router = useRouter();
   const [formattedUpdatedText, setFormattedUpdatedText] = useState<string | undefined>(
@@ -248,7 +250,7 @@ export default function SupportGroupCard({
               <Image src={backIconSrc} alt="Back" width={18} height={18} />
             </button>
 
-            <button
+            {isMember && <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
@@ -258,7 +260,7 @@ export default function SupportGroupCard({
               className="h-9 w-9 flex items-center justify-center"
             >
               <Image src={shareIconSrc} alt="Share" width={24} height={24} />
-            </button>
+            </button>}
           </div>
 
           <div className="flex flex-col items-center text-center relative z-10">
@@ -281,6 +283,13 @@ export default function SupportGroupCard({
                 <span className="text-sm text-[#54555A]">({fmt(reviews) ?? 0})</span>
               </div>
 
+              <div className="px-4">
+                <GroupStatsCard
+                  postsThisWeek={totalPosts?? 45}
+                  activeMembers={members ?? 340}
+                />
+              </div>
+
               {/* <div className="flex items-center text-[#54555A]">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <circle cx="12" cy="12" r="10"></circle>
@@ -289,16 +298,16 @@ export default function SupportGroupCard({
                 <span className="ml-2 text-sm">{formattedUpdatedText}</span>
               </div> */}
 
-              <div className="flex -space-x-2 ml-2">
+              {/* <div className="flex -space-x-2 ml-2">
                 {shownAvatars.map((a, i) => (
                   <div key={i} className="h-[32px] w-[32px] rounded-full ring-2 ring-white overflow-hidden">
                     <Image src={a.src} alt={a.alt ?? `Member ${i + 1}`} width={32} height={32} className="object-cover" />
                   </div>
                 ))}
-              </div>
+              </div> */}
             </div>
 
-            <div className="mt-4 flex items-center gap-6 text-[#54555A]">
+            {/* <div className="mt-4 flex items-center gap-6 text-[#54555A]">
               <div className="flex items-center gap-2">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#54555A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -314,7 +323,7 @@ export default function SupportGroupCard({
                 </svg>
                 <span className="text-sm font-bold">{fmt(experts) ?? 0} experts</span>
               </div>
-            </div>
+            </div> */}
 
             {/* // inside the isDetail block, replace the existing "mt-5 flex items-center" block with: */}
             <div className="mt-5 flex justify-center w-full">

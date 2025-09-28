@@ -761,7 +761,7 @@ export default function CommentClient({
             const isOwn = currentUser && parent.user_name === (currentUser.full_name || currentUser.user_name);
             
             return (
-              <div key={parent.id} className="bg-white border rounded-xl">
+              <div key={parent.id} className="bg-white border-b-2 shadow-none">
                 <div className="p-4">
                   <div className="flex gap-3">
                     <div className="h-10 w-10 rounded-full overflow-hidden">
@@ -844,7 +844,7 @@ export default function CommentClient({
                             <Avatar src={child.avatar_url?.length ? child.avatar_url : null} name={child.user_name} size={32} className="flex-shrink-0" />
                           </div>
 
-                          <div className="flex-1 bg-[#F7FAF9] rounded-lg p-3">
+                          <div className="flex-1 rounded-lg p-3">
                             <div className="flex items-center justify-between">
                               <div>
                                 <div className="text-sm font-semibold text-[#18448A]">

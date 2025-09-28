@@ -264,14 +264,7 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
                       Connect with others who understand your journey. Search for support groups by condition, location, or keywords.
                     </p>
 
-                    <div className="mt-6 grid grid-cols-2 gap-y-6 gap-x-4 sm:grid-cols-4">
-                      <StatTile number={stats?.totalGroups?.toLocaleString() ?? '...'} label="Groups" iconSrc="/groups.svg" alt="Groups" />
-                      <StatTile number={stats?.totalPatients?.toLocaleString() ?? '...'} label="Patients & Caregivers" iconSrc="/users.svg" alt="Patients & Caregivers" />
-                      <StatTile number={stats?.totalExperts?.toLocaleString() ?? '...'} label="Health Experts" iconSrc="/experts.svg" alt="Health Experts" />
-                      <StatTile number={stats?.totalDiscussions?.toLocaleString() ?? '...'} label="Discussions" iconSrc="/discussions.svg" alt="Discussions" />
-                    </div>
-
-                    <div className="mt-12">
+                    <div className="mt-8">
                       <motion.div layoutId="search-bar" className="w-full h-12 relative">
                         <SearchBar
                           value={q}
@@ -282,6 +275,13 @@ export default function SupportGroupsClient({ initialGroups, initialChipItems, i
                           navigateOnInteract={false}
                         />
                       </motion.div>
+                    </div>
+
+                    <div className="mt-6 grid grid-cols-2 gap-y-6 gap-x-4 sm:grid-cols-4">
+                      <StatTile number={stats?.totalGroups?.toLocaleString() ?? '...'} label="Groups" iconSrc="/groups.svg" alt="Groups" />
+                      <StatTile number={stats?.totalPatients?.toLocaleString() ?? '...'} label="Patients & Caregivers" iconSrc="/users.svg" alt="Patients & Caregivers" />
+                      <StatTile number={stats?.totalExperts?.toLocaleString() ?? '...'} label="Health Experts" iconSrc="/experts.svg" alt="Health Experts" />
+                      <StatTile number={stats?.totalDiscussions?.toLocaleString() ?? '...'} label="Discussions" iconSrc="/discussions.svg" alt="Discussions" />
                     </div>
                   </motion.div>
                 ) : (

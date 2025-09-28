@@ -813,14 +813,14 @@ export default function GroupDetailClient({
                 </div>
               </div>
             </div>
-            <div className="mt-4 px-4">
+            {/* <div className="mt-4 px-4">
               <GroupStatsCard
                 postsThisWeek={group?.totalPosts ?? 45}
                 activeMembers={group?.members ?? 340}
                 monthlyGrowth={group?.growthPercentage ?? "12%"}
                 expertSessions={group?.experts ?? 8}
               />
-            </div>
+            </div> */}
           </div>
 
           {/* Feed header with Filter button */}
@@ -1173,7 +1173,7 @@ export default function GroupDetailClient({
 }
 
 /* helper components (same as earlier version) */
-function GroupStatsCard({
+export function GroupStatsCard({
   postsThisWeek = 45,
   activeMembers = 340,
   monthlyGrowth = "12%",
@@ -1193,12 +1193,12 @@ function GroupStatsCard({
   expertIcon?: string;
 }) {
   return (
-    <div className="mx-auto w-full rounded-2xl bg-white p-4 shadow-sm border border-[#EEF2F6]">
+    <div className="mx-auto w-full rounded-2xl bg-white p-4">
       <div className="grid grid-cols-2 gap-4">
         <StatTile iconSrc={postsIcon} iconAlt="Posts" number={postsThisWeek} label="Posts this week" />
         <StatTile iconSrc={membersIcon} iconAlt="Members" number={activeMembers} label="Active members" />
-        <StatTile iconSrc={growthIcon} iconAlt="Growth" number={monthlyGrowth} label="Monthly growth" />
-        <StatTile iconSrc={expertIcon} iconAlt="Experts" number={expertSessions} label="Expert sessions" />
+        {/* <StatTile iconSrc={growthIcon} iconAlt="Growth" number={monthlyGrowth} label="Monthly growth" />
+        <StatTile iconSrc={expertIcon} iconAlt="Experts" number={expertSessions} label="Expert sessions" /> */}
       </div>
     </div>
   );

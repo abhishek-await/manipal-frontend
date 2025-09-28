@@ -87,7 +87,7 @@ export async function POST(req: Request) {
   };
 
   // Add Authorization header using accessToken cookie (backend expects this)
-  if (access && isTokenExpired(access)) {
+  if (access && !isTokenExpired(access)) {
     forwardHeaders["Authorization"] = `Bearer ${access}`;
   } else if(refresh) {
     try {

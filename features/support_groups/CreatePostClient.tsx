@@ -311,7 +311,8 @@ export default function CreatePostClient({
         className="flex-1 overflow-auto pt-14 pb-8 px-4"
         style={{ paddingBottom: keyboardOpen ? 260 : undefined }}
       >
-        <form onSubmit={handleSubmit} className="space-y-4 max-w-2xl mx-auto">
+
+        <form onSubmit={handleSubmit} className="space-y-4 pt-4 max-w-2xl mx-auto">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full overflow-hidden bg-[#F3F4F6] flex-shrink-0">
               <Image src={groupAvatar || "/images/group-thumb.png"} alt="group avatar" width={40} height={40} className="object-cover" />
@@ -321,7 +322,7 @@ export default function CreatePostClient({
             </div>
           </div>
 
-          <div>
+          {/* <div>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -329,7 +330,7 @@ export default function CreatePostClient({
               disabled={loading} // Add this
               className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#16AF9F] disabled:bg-gray-50 disabled:cursor-not-allowed"
             />
-          </div>
+          </div> */}
 
           <div>
             <textarea
@@ -337,13 +338,36 @@ export default function CreatePostClient({
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="Share your thoughts..."
-              rows={6}
+              rows={8}
               disabled={loading} // Add this
               onFocus={onFocusTextarea}
               onBlur={onBlurTextarea}
               className="w-full border border-[#E5E7EB] rounded-lg px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#16AF9F] min-h-[140px] resize-none disabled:bg-gray-50 disabled:cursor-not-allowed"
             />
           </div>
+
+          {rejectionMessage && (
+            <div className="mb-4 mx-auto p-3 border border-[#F1C0C0] bg-[#FFF5F5] rounded-lg text-sm text-[#7A1F1F]">
+              <div className="font-semibold mb-1">Post needs changes</div>
+              <div>{rejectionMessage}</div>
+              <div className="mt-3 flex gap-2">
+                <button onClick={() => setRejectionMessage(null)} className="px-3 py-1 rounded bg-white border text-sm">
+                  Dismiss
+                </button>
+
+                {/* Show Join CTA when message suggests membership requirement */}
+                {(rejectionMessage || "").toLowerCase().includes("join") && (
+                  <button
+                    onClick={handleJoinFromCreate}
+                    disabled={loading}
+                    className="px-3 py-1 rounded bg-[#18448A] text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {loading ? "Joining…" : "Join group"}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* thumbnails */}
           {preview && (

@@ -417,18 +417,18 @@ export default function PostCard({
             <div className={`h-5 w-5 transition-all duration-200 ${isLikedDisplay ? 'like-animation' : ''}`}>
               {isLikedDisplay ? <FavoriteFilledIcon className="h-full w-full" /> : <FavoriteOutlineIcon className="h-full w-full" />}
             </div>
-            <span className="ml-2 text-[#6B7280] transition-all duration-200">{likeCountDisplay}</span>
+            <span className="ml-2 text-[#6B7280] transition-all duration-200">{likeCountDisplay ? likeCountDisplay : null}</span>
           </button>
 
           {/* Reply (keeps its stopPropagation inside handler) */}
           <button className="flex items-center gap-2 text-gray-600 px-2 py-1" onClick={handleReply} disabled={navPending || showFullContent} aria-label="Open comments">
             <Image src="/chat_bubble.svg" alt="Reply" width={18} height={18} />
-            <span className="ml-2 text-[#6B7280]">{replyCountDisplay}</span>
+            <span className="ml-2 text-[#6B7280]">{replyCountDisplay ? replyCountDisplay : null}</span>
           </button>
 
           <div className="flex items-center gap-2 text-gray-600 px-2 py-1">
             <Image src="/visibility.svg" alt="view-count" width={20} height={20}/>
-            <span className="ml-2 text-[#6B7280]">{viewCount}</span>
+            <span className="ml-2 text-[#6B7280]">{viewCount ? viewCount : null}</span>
           </div>
 
           {/* Share button (already had stopPropagation) */}

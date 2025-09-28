@@ -1193,7 +1193,7 @@ export function GroupStatsCard({
   expertIcon?: string;
 }) {
   return (
-    <div className="mx-auto w-full rounded-2xl bg-white p-4">
+    <div className="mx-auto w-full rounded-2xl p-4">
       <div className="grid grid-cols-2 gap-4">
         <StatTile iconSrc={postsIcon} iconAlt="Posts" number={postsThisWeek} label="Posts this week" />
         <StatTile iconSrc={membersIcon} iconAlt="Members" number={activeMembers} label="Active members" />
@@ -1216,7 +1216,7 @@ function StatTile({
   label: string;
 }) {
   return (
-    <div className="flex items-center gap-3 p-2 rounded-lg bg-white">
+    <div className="flex items-center gap-3 p-2 rounded-lg">
         <div className="h-11 w-11">
           <Image src={iconSrc} alt={iconAlt} width={44} height={44} className="object-contain" />
         </div>

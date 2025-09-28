@@ -238,7 +238,7 @@ try {
 console.log("Forwarder: sending multipart with headers:", mergedHeaders);
 
 // send Buffer as body (fetch accepts Buffer)
-let backendRes = await forwardToBackend(path, method, mergedHeaders, bodyBuffer);
+const backendRes = await forwardToBackend(path, method, mergedHeaders, bodyBuffer);
 
 // (then run your existing refresh/retry logic if 401 and refresh token exists)
 
@@ -319,7 +319,7 @@ let backendRes = await forwardToBackend(path, method, mergedHeaders, bodyBuffer)
   }
 
   // First attempt
-  let backendRes = await forwardToBackend(path, method, forwardHeaders, bodyToSend);
+  const backendRes = await forwardToBackend(path, method, forwardHeaders, bodyToSend);
 
   // // If 401 and we have a refresh token, try to refresh and retry once
   // if (backendRes.status === 401 && refresh) {

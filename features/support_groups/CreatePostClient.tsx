@@ -311,29 +311,6 @@ export default function CreatePostClient({
         className="flex-1 overflow-auto pt-14 pb-8 px-4"
         style={{ paddingBottom: keyboardOpen ? 260 : undefined }}
       >
-                {rejectionMessage && (
-          <div className="mb-4 mx-auto p-3 border border-[#F1C0C0] bg-[#FFF5F5] rounded-lg text-sm text-[#7A1F1F]">
-            <div className="font-semibold mb-1">Post needs changes</div>
-            <div>{rejectionMessage}</div>
-            <div className="mt-3 flex gap-2">
-              <button onClick={() => setRejectionMessage(null)} className="px-3 py-1 rounded bg-white border text-sm">
-                Dismiss
-              </button>
-
-              {/* Show Join CTA when message suggests membership requirement */}
-              {(rejectionMessage || "").toLowerCase().includes("join") && (
-                <button
-                  onClick={handleJoinFromCreate}
-                  disabled={loading}
-                  className="px-3 py-1 rounded bg-[#18448A] text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {loading ? "Joining…" : "Join group"}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="space-y-4 max-w-2xl mx-auto">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full overflow-hidden bg-[#F3F4F6] flex-shrink-0">

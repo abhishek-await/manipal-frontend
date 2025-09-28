@@ -3,9 +3,12 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import FormDataNode from "form-data"; // npm i form-data
 import { Buffer } from "buffer";
+import { jwtDecode } from "jwt-decode";
+
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL;
 const isProd = process.env.NODE_ENV === "production";
+
 
 /**
  * Minimal whitelist - expand to match only the endpoints you need.
@@ -22,6 +25,23 @@ const ALLOWED_PREFIXES = [
 function isAllowedPath(path: string) {
   // Keep your original style: check that the forwarded path starts with BACKEND + allowed prefix
   return ALLOWED_PREFIXES.some((p) => path.startsWith((BACKEND ?? "") + p));
+}
+
+type JWTPayload = {
+  exp?: number;
+  [key: string]: any;
+};
+
+function isTokenExpired(token: string): boolean {
+  try {
+    const decoded = jwtDecode<JWTPayload>(token);
+
+    if (!decoded.exp) return true; // no expiration claim
+    const currentTime = Math.floor(Date.now() / 1000);
+    return decoded.exp < currentTime;
+  } catch (e) {
+    return true; // invalid token
+  }
 }
 
 async function forwardToBackend(path: string, method: string, headers: Record<string, string>, body?: any) {
@@ -67,8 +87,62 @@ export async function POST(req: Request) {
   };
 
   // Add Authorization header using accessToken cookie (backend expects this)
-  if (access) {
+  if (access && isTokenExpired(access)) {
     forwardHeaders["Authorization"] = `Bearer ${access}`;
+  } else if(refresh) {
+    try {
+      const refreshRes = await fetch(`${BACKEND}/auth/token/refresh/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie: allCookies },
+        body: JSON.stringify({ refresh }),
+      });
+
+      if (refreshRes.ok) {
+        const data = await refreshRes.json().catch(() => ({}));
+
+        // set cookies on Next response (httpOnly)
+        if (data.access) {
+          cookieStore.set({
+            name: "accessToken",
+            value: data.access,
+            httpOnly: true,
+            sameSite: "lax",
+            path: "/",
+            maxAge: 60 * 60 * 24, // 15m, adjust to your token lifetime
+            secure: isProd,
+          });
+        }
+        if (data.refresh) {
+          cookieStore.set({
+            name: "refreshToken",
+            value: data.refresh,
+            httpOnly: true,
+            sameSite: "lax",
+            path: "/",
+            maxAge: 60 * 60 * 24 * 10,
+            secure: isProd,
+          });
+        }
+
+        // use new access from refresh response (prefer data.access; fallback to cookie)
+        const newAccess = data.access ?? cookieStore.get("accessToken")?.value;
+        if (newAccess) {
+          forwardHeaders["Authorization"] = `Bearer ${newAccess}`;
+        } else {
+          // If we still don't have access, fall through and return original 401
+        }
+
+        // retry original request with new Authorization header
+        // backendRes = await forwardToBackend(path, method, forwardHeaders, bodyToSend);
+      } else {
+        // refresh failed -> clear server cookies (session ended)
+        cookieStore.delete("accessToken");
+        cookieStore.delete("refreshToken");
+      }
+    } catch (err) {
+      console.error("refresh attempt failed", err);
+      // fall back to returning the original 401
+    }
   }
 
   // ---------- NEW: If payload.body contains files/post_in shape, build multipart ----------
@@ -170,61 +244,61 @@ let backendRes = await forwardToBackend(path, method, mergedHeaders, bodyBuffer)
 
 
   // refresh logic (unchanged)...
-  if (backendRes.status === 401 && refresh) {
-    try {
-      const refreshRes = await fetch(`${BACKEND}/auth/token/refresh/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", cookie: allCookies },
-        body: JSON.stringify({ refresh }),
-      });
+  // if (backendRes.status === 401 && refresh) {
+  //   try {
+  //     const refreshRes = await fetch(`${BACKEND}/auth/token/refresh/`, {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json", cookie: allCookies },
+  //       body: JSON.stringify({ refresh }),
+  //     });
 
-      if (refreshRes.ok) {
-        const data = await refreshRes.json().catch(() => ({}));
+  //     if (refreshRes.ok) {
+  //       const data = await refreshRes.json().catch(() => ({}));
 
-        // set cookies on Next response (httpOnly)
-        if (data.access) {
-          cookieStore.set({
-            name: "accessToken",
-            value: data.access,
-            httpOnly: true,
-            sameSite: "lax",
-            path: "/",
-            maxAge: 60 * 60 * 24, // 15m, adjust to your token lifetime
-            secure: isProd,
-          });
-        }
-        if (data.refresh) {
-          cookieStore.set({
-            name: "refreshToken",
-            value: data.refresh,
-            httpOnly: true,
-            sameSite: "lax",
-            path: "/",
-            maxAge: 60 * 60 * 24 * 10,
-            secure: isProd,
-          });
-        }
+  //       // set cookies on Next response (httpOnly)
+  //       if (data.access) {
+  //         cookieStore.set({
+  //           name: "accessToken",
+  //           value: data.access,
+  //           httpOnly: true,
+  //           sameSite: "lax",
+  //           path: "/",
+  //           maxAge: 60 * 60 * 24, // 15m, adjust to your token lifetime
+  //           secure: isProd,
+  //         });
+  //       }
+  //       if (data.refresh) {
+  //         cookieStore.set({
+  //           name: "refreshToken",
+  //           value: data.refresh,
+  //           httpOnly: true,
+  //           sameSite: "lax",
+  //           path: "/",
+  //           maxAge: 60 * 60 * 24 * 10,
+  //           secure: isProd,
+  //         });
+  //       }
 
-        // use new access from refresh response (prefer data.access; fallback to cookie)
-        const newAccess = data.access ?? cookieStore.get("accessToken")?.value;
-        if (newAccess) {
-          forwardHeaders["Authorization"] = `Bearer ${newAccess}`;
-        } else {
-          // If we still don't have access, fall through and return original 401
-        }
+  //       // use new access from refresh response (prefer data.access; fallback to cookie)
+  //       const newAccess = data.access ?? cookieStore.get("accessToken")?.value;
+  //       if (newAccess) {
+  //         forwardHeaders["Authorization"] = `Bearer ${newAccess}`;
+  //       } else {
+  //         // If we still don't have access, fall through and return original 401
+  //       }
 
-        // retry original request with new Authorization header
-        backendRes = await forwardToBackend(path, method, forwardHeaders, bodyToSend);
-      } else {
-        // refresh failed -> clear server cookies (session ended)
-        cookieStore.delete("accessToken");
-        cookieStore.delete("refreshToken");
-      }
-    } catch (err) {
-      console.error("refresh attempt failed", err);
-      // fall back to returning the original 401
-    }
-  }
+  //       // retry original request with new Authorization header
+  //       backendRes = await forwardToBackend(path, method, forwardHeaders, bodyToSend);
+  //     } else {
+  //       // refresh failed -> clear server cookies (session ended)
+  //       cookieStore.delete("accessToken");
+  //       cookieStore.delete("refreshToken");
+  //     }
+  //   } catch (err) {
+  //     console.error("refresh attempt failed", err);
+  //     // fall back to returning the original 401
+  //   }
+  // }
 
   const text = await backendRes.text().catch(() => "");
   const resp = new NextResponse(text, { status: backendRes.status });
@@ -247,62 +321,62 @@ let backendRes = await forwardToBackend(path, method, mergedHeaders, bodyBuffer)
   // First attempt
   let backendRes = await forwardToBackend(path, method, forwardHeaders, bodyToSend);
 
-  // If 401 and we have a refresh token, try to refresh and retry once
-  if (backendRes.status === 401 && refresh) {
-    try {
-      const refreshRes = await fetch(`${BACKEND}/auth/token/refresh/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", cookie: allCookies },
-        body: JSON.stringify({ refresh }),
-      });
+  // // If 401 and we have a refresh token, try to refresh and retry once
+  // if (backendRes.status === 401 && refresh) {
+  //   try {
+  //     const refreshRes = await fetch(`${BACKEND}/auth/token/refresh/`, {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json", cookie: allCookies },
+  //       body: JSON.stringify({ refresh }),
+  //     });
 
-      if (refreshRes.ok) {
-        const data = await refreshRes.json().catch(() => ({}));
+  //     if (refreshRes.ok) {
+  //       const data = await refreshRes.json().catch(() => ({}));
 
-        // set cookies on Next response (httpOnly)
-        if (data.access) {
-          cookieStore.set({
-            name: "accessToken",
-            value: data.access,
-            httpOnly: true,
-            sameSite: "lax",
-            path: "/",
-            maxAge: 60 * 60 * 24, // 15m, adjust to your token lifetime
-            secure: isProd,
-          });
-        }
-        if (data.refresh) {
-          cookieStore.set({
-            name: "refreshToken",
-            value: data.refresh,
-            httpOnly: true,
-            sameSite: "lax",
-            path: "/",
-            maxAge: 60 * 60 * 24 * 10,
-            secure: isProd,
-          });
-        }
+  //       // set cookies on Next response (httpOnly)
+  //       if (data.access) {
+  //         cookieStore.set({
+  //           name: "accessToken",
+  //           value: data.access,
+  //           httpOnly: true,
+  //           sameSite: "lax",
+  //           path: "/",
+  //           maxAge: 60 * 60 * 24, // 15m, adjust to your token lifetime
+  //           secure: isProd,
+  //         });
+  //       }
+  //       if (data.refresh) {
+  //         cookieStore.set({
+  //           name: "refreshToken",
+  //           value: data.refresh,
+  //           httpOnly: true,
+  //           sameSite: "lax",
+  //           path: "/",
+  //           maxAge: 60 * 60 * 24 * 10,
+  //           secure: isProd,
+  //         });
+  //       }
 
-        // use new access from refresh response (prefer data.access; fallback to cookie)
-        const newAccess = data.access ?? cookieStore.get("accessToken")?.value;
-        if (newAccess) {
-          forwardHeaders["Authorization"] = `Bearer ${newAccess}`;
-        } else {
-          // If we still don't have access, fall through and return original 401
-        }
+  //       // use new access from refresh response (prefer data.access; fallback to cookie)
+  //       const newAccess = data.access ?? cookieStore.get("accessToken")?.value;
+  //       if (newAccess) {
+  //         forwardHeaders["Authorization"] = `Bearer ${newAccess}`;
+  //       } else {
+  //         // If we still don't have access, fall through and return original 401
+  //       }
 
-        // retry original request with new Authorization header
-        backendRes = await forwardToBackend(path, method, forwardHeaders, bodyToSend);
-      } else {
-        // refresh failed -> clear server cookies (session ended)
-        cookieStore.delete("accessToken");
-        cookieStore.delete("refreshToken");
-      }
-    } catch (err) {
-      console.error("refresh attempt failed", err);
-      // fall back to returning the original 401
-    }
-  }
+  //       // retry original request with new Authorization header
+  //       backendRes = await forwardToBackend(path, method, forwardHeaders, bodyToSend);
+  //     } else {
+  //       // refresh failed -> clear server cookies (session ended)
+  //       cookieStore.delete("accessToken");
+  //       cookieStore.delete("refreshToken");
+  //     }
+  //   } catch (err) {
+  //     console.error("refresh attempt failed", err);
+  //     // fall back to returning the original 401
+  //   }
+  // }
 
   // Read response body and forward it along with status
   const text = await backendRes.text().catch(() => "");

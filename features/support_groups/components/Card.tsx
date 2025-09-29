@@ -428,6 +428,14 @@ export default function SupportGroupCard({
                 <span className="ml-2 text-[12px] leading-5 font-bold">{fmt(experts)} experts</span>
               </div>
             )}
+
+            {isMember && 
+              <div className="flex ml-12">
+                <Image src="/check_circle.svg" alt="Back" width={24} height={24} />
+                <span className="ml-2 text-[14px] leading-5 font-bold text-[#00B7AC] pt-0.5">Member</span>
+              </div>
+            }
+
           </div>
 
           <div className="mt-4">

@@ -9,6 +9,7 @@ import { authApi } from "@/features/auth/api/auth.api";
 import PostCard from "@/features/support_groups/components/PostCard";
 import Avatar from "@/components/Avatar";
 import { useCallback } from "react";
+import ShareSheet, { ShareData } from "./components/ShareSheet";
 
 export type FlatReply = {
   id: string;
@@ -673,34 +674,58 @@ export default function CommentClient({
   
   // Show only the most recent notification
   const notification = uniqueNotifications[uniqueNotifications.length - 1];
-  if (!notification) return null;
-  
-  return (
-    <div className="fixed bottom-18 left-4 right-4 z-50 animate-slide-up">
-      <div
-        className={`
-          p-4 rounded-lg shadow-lg flex items-start justify-between gap-3
-          ${notification.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' : ''}
-          ${notification.type === 'warning' ? 'bg-yellow-50 text-yellow-800 border border-yellow-200' : ''}
-          ${notification.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : ''}
-        `}
-      >
-        <div className="flex items-start gap-2">
-          {notification.type === 'error' && <span>❌</span>}
-          {notification.type === 'warning' && <span>⚠️</span>}
-          {notification.type === 'success' && <span>✅</span>}
-          <p className="text-sm font-medium">{notification.message}</p>
-        </div>
-        <button
-          onClick={() => setNotifications(new Map())}
-          className="text-gray-400 hover:text-gray-600 text-sm"
+    if (!notification) return null;
+    
+    return (
+      <div className="fixed bottom-18 left-4 right-4 z-50 animate-slide-up">
+        <div
+          className={`
+            p-4 rounded-lg shadow-lg flex items-start justify-between gap-3
+            ${notification.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' : ''}
+            ${notification.type === 'warning' ? 'bg-yellow-50 text-yellow-800 border border-yellow-200' : ''}
+            ${notification.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : ''}
+          `}
         >
-          ✕
-        </button>
+          <div className="flex items-start gap-2">
+            {notification.type === 'error' && <span>❌</span>}
+            {notification.type === 'warning' && <span>⚠️</span>}
+            {notification.type === 'success' && <span>✅</span>}
+            <p className="text-sm font-medium">{notification.message}</p>
+          </div>
+          <button
+            onClick={() => setNotifications(new Map())}
+            className="text-gray-400 hover:text-gray-600 text-sm"
+          >
+            ✕
+          </button>
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
+
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareData, setShareData] = useState<ShareData | null>(null);
+
+  const makeUrl = (path: string) => {
+    if (typeof window !== "undefined" && window.location?.origin) {
+      return `${window.location.origin}${path}`;
+    }
+    // fallback relative path (OK for client navigation)
+    return path;
+  };
+
+  const openShareForPost = (p: { id: string; title?: string; excerpt?: string; tag?: string[] }) => {
+    const path = `/support-group/${p.id}/comment`;
+    setShareData({
+      title: p.title ?? "Post from Group",
+      excerpt: p.excerpt,
+      tags: p.tag ?? [],
+      url: makeUrl(path),
+      sourceLogo:"/logo_1.svg", // optional: adjust field name to your group model
+      sourceText:"Shared from Manipal Community Connect",
+    });
+    setShareOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
@@ -727,6 +752,7 @@ export default function CommentClient({
           replyCount={replyCount}
           viewCount={initialPost?.num_reads}
           onToggleLike={handleToggleLike}
+          onShare={(postPayload) => openShareForPost(postPayload)}
           className="rounded-none"
           attachments={initialPost?.attachments}
           showFullContent={true}
@@ -761,7 +787,7 @@ export default function CommentClient({
             const isOwn = currentUser && parent.user_name === (currentUser.full_name || currentUser.user_name);
             
             return (
-              <div key={parent.id} className="bg-white border-b-2 shadow-none">
+              <div key={parent.id} className="bg-white shadow-none">
                 <div className="p-4">
                   <div className="flex gap-3">
                     <div className="h-10 w-10 rounded-full overflow-hidden">
@@ -800,15 +826,15 @@ export default function CommentClient({
                             width={16} 
                             height={16}   
                           />
-                          <span>{parent.likeCount || 0}</span>
+                          <span>{parent.likeCount ? parent.likeCount : null}</span>
                         </button>
                         <button className="flex items-center gap-2 text-[#6B7280]" onClick={() => startReply(String(parent.id), parent.user_name)}>
                           <Image src="/chat_bubble.svg" alt="reply" width={16} height={16} />
                           <span>{children.length || 0}</span>
                         </button>
                         <button className="flex items-center gap-2 text-[#6B7280]" onClick={() => handleShare()}>
-                          <Image src="/share.svg" alt="share" width={16} height={16} />
-                          <span>Share</span>
+                          {/* <Image src="/share.svg" alt="share" width={16} height={16} />
+                          <span>Share</span> */}
                         </button>
                       </div>
                     </div>
@@ -834,7 +860,7 @@ export default function CommentClient({
                 )}
 
                 {children.length > 0 && showChildren && (
-                  <div className="px-4 pb-4 space-y-3">
+                  <div className="px-4 pb-4 bg-[#F7F7F7] space-y-3 rounded-2xl">
                     {children.map((child) => {
                       const isOwnChild = currentUser && child.user_name === (currentUser.full_name || currentUser.user_name);
                       
@@ -880,15 +906,14 @@ export default function CommentClient({
                                   width={14} 
                                   height={14} 
                                 />
-                                <span>{child.likeCount || 0}</span>
+                                <span>{child.likeCount ? child.likeCount : null }</span>
                               </button>
                               <button onClick={() => startReply(child.id, child.user_name)} className="text-[#18448A] flex items-center gap-2">
                                 <Image src="/chat_bubble.svg" alt="reply" width={14} height={14} />
-                                <span>Reply</span>
                               </button>
                               <button onClick={() => handleShare()} className="text-[#6B7280] flex items-center gap-2">
-                                <Image src="/share.svg" alt="share" width={14} height={14} />
-                                <span>Share</span>
+                                {/* <Image src="/share.svg" alt="share" width={14} height={14} />
+                                <span>Share</span> */}
                               </button>
                             </div>
                           </div>
@@ -960,6 +985,7 @@ export default function CommentClient({
           <div className="mt-2 text-xs text-gray-500">You'll be asked to sign in before posting.</div>
         )}
       </div>
+      <ShareSheet open={shareOpen} onClose={() => { setShareOpen(false); setShareData(null); }} data={shareData} />
     </div>
   );
 }

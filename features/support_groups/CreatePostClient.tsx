@@ -289,7 +289,7 @@ export default function CreatePostClient({
 
         <h1 className="flex-1 text-center font-semibold text-[16px] text-[#0F141A]">Create Post</h1>
 
-        <div className="w-[72px] flex items-center justify-end">
+        {/* <div className="w-[72px] flex items-center justify-end">
           <button
             onClick={handleSubmit}
             disabled={loading}
@@ -302,7 +302,7 @@ export default function CreatePostClient({
           >
             {loading ? "Posting…" : "Post"}
           </button>
-        </div>
+        </div> */}
       </header>
 
       {/* scrollable content area */}
@@ -406,7 +406,7 @@ export default function CreatePostClient({
           )}
 
           {/* media controls (no text — only photo/video icons) */}
-          <div className="flex items-center">
+          <div className="flex items-center justify-between">
             <button
               type="button"
               onClick={openFilePicker}
@@ -419,6 +419,20 @@ export default function CreatePostClient({
               </div>
               <div className="text-sm text-[#6B7280]">Supports images (up to 1MB)</div>
             </button>
+            <div className="w-[72px] flex items-center justify-end">
+              <button
+                onClick={handleSubmit}
+                disabled={loading}
+                aria-disabled={loading}
+                aria-label="Post"
+                className={`h-10 px-3 rounded-lg text-white font-semibold flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-offset-1 ${
+                  loading ? "bg-[#9AA6B2] cursor-not-allowed" : "bg-[#18448A]"
+                }`}
+                type="button"
+              >
+                {loading ? "Posting…" : "Post"}
+              </button>
+            </div>
           </div>
 
           <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple onChange={onFilesSelected} className="hidden" />

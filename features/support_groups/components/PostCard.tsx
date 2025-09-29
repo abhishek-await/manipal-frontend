@@ -7,7 +7,6 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { groupApi } from "@/features/support_groups/api/group.api";
 import { authApi } from "@/features/auth/api/auth.api";
-import { fa } from "zod/locales";
 import Avatar from "@/components/Avatar";
 
 export type PostCardProps = {
@@ -61,6 +60,10 @@ export default function PostCard({
   const [pending, setPending] = useState(false); // for like
   const [navPending, setNavPending] = useState(false); // for navigation feedback (click -> push)
 
+  // Menu state
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
   // Only use local state if NOT controlled
   const isControlledLike = typeof onToggleLike === "function";
   const [likedLocal, setLikedLocal] = useState<boolean>(!isControlledLike && !!isLikedProp);
@@ -113,7 +116,6 @@ export default function PostCard({
     }
   };
 
-
   useEffect(() => {
     if (!isControlledLike) {
       setLikedLocal(!!isLikedProp);
@@ -135,7 +137,7 @@ export default function PostCard({
     // Immediate optimistic update
     const wasLiked = likedLocal;
     const previousCount = likeCountLocal;
-    
+
     setLikedLocal(!wasLiked);
     setLikeCountLocal(wasLiked ? Math.max(previousCount - 1, 0) : previousCount + 1);
     setPending(true);
@@ -202,7 +204,6 @@ export default function PostCard({
     }
   };
 
-
   const onCardActivate = async () => {
     if (navPending || showFullContent) return;
 
@@ -224,37 +225,9 @@ export default function PostCard({
     }
   };
 
-
-
   // --- PREFETCH on hover/focus (new) ---
-  // const prefetchedRef = useRef(false);
-  // const prefetchComments = async () => {
-  //   if (prefetchedRef.current) return;
-  //   prefetchedRef.current = true;
+  // omitted for brevity (kept from your original file)
 
-  //   const href = `/support-group/${id}/comment`;
-
-  //   // try {
-  //   //   router.prefetch?.(href);
-  //   // } catch (e) {}
-
-  //   try {
-  //     const maybeFn = (groupApi as any).getComments ?? (groupApi as any).getPostComments ?? (groupApi as any).getReplies;
-  //     if (typeof maybeFn === "function") {
-  //       const p = maybeFn(String(id));
-  //       await Promise.race([p, new Promise((res) => setTimeout(res, 350))]);
-  //     }
-  //   } catch (e) {}
-
-  //   try {
-  //     const u = authApi.getCurrentUser?.();
-  //     if (u && typeof (u as any).then === "function") {
-  //       await Promise.race([u, new Promise((res) => setTimeout(res, 250))]);
-  //     }
-  //   } catch {}
-  // };
-
-  // show reply count changes pushed by events
   useEffect(() => {
     setReplyCountLocal(replyCountProp ?? 0);
   }, [replyCountProp]);
@@ -294,48 +267,63 @@ export default function PostCard({
 
   const attSrc = buildAttachmentSrc(attachments?.[0]);
 
-  // --- New: handle clicking the card (navigate to comments) with feedback ---
-  //   const onCardActivate = async () => {
-  //   if (navPending || showFullContent) return;
+  // Share implementation reused by menu item
+  const sharePost = async () => {
+    if (typeof onShare === "function") {
+      onShare({ id, title, excerpt, tag });
+      return;
+    }
 
-  //   // If parent provided onReplyNavigate, give parent a chance to handle card activation (e.g. membership-guarded navigation).
-  //   if (typeof onReplyNavigate === "function") {
-  //     try {
-  //       onReplyNavigate();
-  //     } catch (err) {
-  //       console.warn("onReplyNavigate failed", err);
-  //     }
-  //     return; // do not run internal navigation
-  //   }
+    try {
+      const shareUrl = typeof window !== "undefined" ? window.location.href : "";
+      if (navigator.share) {
+        await navigator.share({
+          title: title || "Post",
+          text: excerpt || title || "",
+          url: shareUrl,
+        });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        const tmp = document.createElement("input");
+        tmp.value = shareUrl;
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand("copy");
+        document.body.removeChild(tmp);
+      }
+    } catch (err) {
+      console.warn("share fallback failed", err);
+    }
+  };
 
-  //   try {
-  //     onReplyNavigate?.();
-  //   } catch (err) {
-  //     console.warn("onReplyNavigate failed", err);
-  //   }
-
-  //   const href = commentHref;
-  //   setNavPending(true);
-
-  //   try {
-  //     router.push(href);
-  //   } finally {
-  //     setTimeout(() => setNavPending(false), 1500);
-  //   }
-  // };
-
+  // Menu: close on outside click or ESC
+  useEffect(() => {
+    const onDocClick = (ev: MouseEvent) => {
+      if (!menuOpen) return;
+      if (!menuRef.current) return;
+      if (ev.target instanceof Node && menuRef.current.contains(ev.target)) return;
+      setMenuOpen(false);
+    };
+    const onEsc = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape" && menuOpen) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [menuOpen]);
 
   const handleCardClick = (e: React.MouseEvent) => {
     // If user clicked a control (button/input) we should not navigate;
-    // buttons already call stopPropagation, but this is an extra guard.
     const tgt = e.target as HTMLElement | null;
     if (!tgt) {
       onCardActivate();
       return;
     }
 
-    // If an element in the control area (button, svg inside button, anchor) was clicked,
-    // don't trigger card activation.
     if (tgt.closest("button") || tgt.closest("a") || tgt.getAttribute("role") === "button") {
       return;
     }
@@ -357,16 +345,13 @@ export default function PostCard({
   return (
     <Card
       className={`w-full border border-gray-200 shadow-sm ${className} relative transition-transform ${navPending ? "opacity-70 pointer-events-none" : "hover:shadow-md"}`}
-      // onPointerEnter={prefetchComments}
-      // onFocus={prefetchComments}
       tabIndex={0}
       onClick={handleCardClick}
       onKeyDown={handleKeyDown}
-      // small tap/press feedback via tailwind active class (works on mobile)
-      // You can adjust scale-95 to something else if you prefer.
       style={{ transformOrigin: "center" }}
     >
       <CardContent className={`p-2 ${navPending ? "scale-95" : ""}`}>
+
         {/* Header */}
         <div className="flex items-start gap-3">
           <Avatar src={avatar.length ? avatar : null} name={name} size={44} className="flex-shrink-0" />
@@ -376,6 +361,66 @@ export default function PostCard({
               <div className="min-w-0">
                 <div className="text-lg font-semibold text-[#18448A] truncate">{name}</div>
                 <div className="text-sm text-gray-500">{timeAgo(time)}</div>
+              </div>
+
+              <div ref={menuRef} className="relative ml-2">
+                <button
+                  type="button"
+                  aria-haspopup="true"
+                  aria-expanded={menuOpen}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen((s) => !s);
+                  }}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  // show a gray circle when open, otherwise show subtle hover
+                  className={`p-2 rounded-full focus:outline-none active:scale-95 ${
+                    menuOpen ? "bg-[#D9D9D9]" : "hover:bg-gray-100"
+                  }`}
+                  title="More"
+                >
+                  {/* vertical dots svg */}
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <circle cx="12" cy="5" r="1.5" fill="#6B7280" />
+                    <circle cx="12" cy="12" r="1.5" fill="#6B7280" />
+                    <circle cx="12" cy="19" r="1.5" fill="#6B7280" />
+                  </svg>
+                </button>
+
+                {menuOpen ? (
+                  <div
+                    role="menu"
+                    aria-label="Post menu"
+                    className="absolute right-0 mt-2 w-44 rounded-xl bg-white shadow-lg border border-gray-100 z-20"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      role="menuitem"
+                      type="button"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setMenuOpen(false);
+                        await sharePost();
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-50 transition"
+                    >
+                      Share
+                    </button>
+
+                    <button
+                      role="menuitem"
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpen(false);
+                        // TODO: implement report flow later
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-50 transition"
+                    >
+                      Report
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -401,7 +446,7 @@ export default function PostCard({
         <div className="border-t mt-4" />
 
         {/* Actions */}
-        <div className="mt-3 flex items-center justify-between text-gray-700">
+        <div className="mt-3 mx-3 flex items-center justify-between text-gray-700">
           {/* Like button (stopPropagation so clicking like doesn't activate card) */}
           <button
             type="button"
@@ -412,65 +457,26 @@ export default function PostCard({
             disabled={pending || navPending}
             aria-pressed={isLikedDisplay}
             aria-label={isLikedDisplay ? "Liked" : "Like"}
-            className="flex items-center text-gray-600 px-2 py-1 disabled:opacity-60 transition-all duration-200 active:scale-95"
+            className="flex items-center text-gray-600 disabled:opacity-60 transition-all duration-200 active:scale-95"
           >
             <div className={`h-5 w-5 transition-all duration-200 ${isLikedDisplay ? 'like-animation' : ''}`}>
-              {isLikedDisplay ? <FavoriteFilledIcon className="h-full w-full" /> : <FavoriteOutlineIcon className="h-full w-full" />}
+              {isLikedDisplay ? <Image src="/favorite-fill.svg" width={20} height={20} alt="favorite-fill-icon"/> : <Image src="/favorite.svg" width={20} height={20} alt="favorite-icon"/>}
             </div>
             <span className="ml-2 text-[#6B7280] transition-all duration-200">{likeCountDisplay ? likeCountDisplay : null}</span>
           </button>
 
           {/* Reply (keeps its stopPropagation inside handler) */}
-          <button className="flex items-center gap-2 text-gray-600 px-2 py-1" onClick={handleReply} disabled={navPending || showFullContent} aria-label="Open comments">
-            <Image src="/chat_bubble.svg" alt="Reply" width={18} height={18} />
+          <button className="flex items-center text-gray-600" onClick={handleReply} disabled={navPending || showFullContent} aria-label="Open comments">
+            <Image src="/chat_bubble.svg" alt="Reply" width={16} height={16} />
             <span className="ml-2 text-[#6B7280]">{replyCountDisplay ? replyCountDisplay : null}</span>
           </button>
 
-          <div className="flex items-center gap-2 text-gray-600 px-2 py-1">
+          <div className="flex items-center text-gray-600 ">
             <Image src="/visibility.svg" alt="view-count" width={20} height={20}/>
             <span className="ml-2 text-[#6B7280]">{viewCount ? viewCount : null}</span>
           </div>
 
-          {/* Share button (already had stopPropagation) */}
-          <button
-            className="flex items-center gap-2 text-gray-600 px-2 py-1"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (typeof onShare === "function") {
-                onShare({ id, title, excerpt, tag });
-                return;
-              }
-
-              (async () => {
-                try {
-                  const shareUrl = typeof window !== "undefined" ? window.location.href : "";
-                  if (navigator.share) {
-                    await navigator.share({
-                      title: title || "Post",
-                      text: excerpt || title || "",
-                      url: shareUrl,
-                    });
-                  } else if (navigator.clipboard) {
-                    await navigator.clipboard.writeText(shareUrl);
-                  } else {
-                    const tmp = document.createElement("input");
-                    tmp.value = shareUrl;
-                    document.body.appendChild(tmp);
-                    tmp.select();
-                    document.execCommand("copy");
-                    document.body.removeChild(tmp);
-                  }
-                } catch (err) {
-                  console.warn("share fallback failed", err);
-                }
-              })();
-            }}
-            aria-label="Share post"
-            type="button"
-          >
-            <Image src="/share.svg" alt="Share" width={20} height={20} />
-            <span>Share</span>
-          </button>
+          {/* NOTE: The visible Share button removed — share is only available via menu now */}
         </div>
 
         {/* nav feedback overlay (spinner) */}
@@ -499,25 +505,6 @@ function Spinner() {
     >
       <circle cx="12" cy="12" r="10" strokeWidth="3" strokeOpacity="0.25" />
       <path d="M22 12a10 10 0 0 1-10 10" strokeWidth="3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function FavoriteOutlineIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 20 20" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
-      <path
-        d="M9.99967 16.939L9.07988 16.1121C7.69849 14.8589 6.55613 13.782 5.6528 12.8815C4.74947 11.9808 4.03363 11.1792 3.5053 10.4767C2.97697 9.77431 2.60787 9.13354 2.39801 8.55437C2.18801 7.97535 2.08301 7.38778 2.08301 6.79167C2.08301 5.60903 2.48176 4.61889 3.27926 3.82125C4.0769 3.02375 5.06704 2.625 6.24967 2.625C6.97717 2.625 7.66467 2.79514 8.31217 3.13542C8.95967 3.47569 9.52217 3.96368 9.99967 4.59938C10.4772 3.96368 11.0397 3.47569 11.6872 3.13542C12.3347 2.79514 13.0222 2.625 13.7497 2.625C14.9323 2.625 15.9225 3.02375 16.7201 3.82125C17.5176 4.61889 17.9163 5.60903 17.9163 6.79167C17.9163 7.38778 17.8113 7.97535 17.6013 8.55437C17.3915 9.13354 17.0224 9.77431 16.494 10.4767C15.9657 11.1792 15.2512 11.9808 14.3505 12.8815C13.45 13.782 12.3063 14.8589 10.9195 16.1121L9.99967 16.939ZM9.99967 15.25C11.333 14.0503 12.4302 13.0219 13.2913 12.165C14.1525 11.3082 14.833 10.5638 15.333 9.93188C15.833 9.29993 16.1802 8.73875 16.3747 8.24833C16.5691 7.75806 16.6663 7.2725 16.6663 6.79167C16.6663 5.95833 16.3886 5.26389 15.833 4.70833C15.2775 4.15278 14.583 3.875 13.7497 3.875C13.0916 3.875 12.4834 4.06167 11.9251 4.435C11.3669 4.80847 10.9249 5.32799 10.599 5.99354H9.4003C9.06905 5.32257 8.62565 4.80174 8.07009 4.43104C7.51454 4.06035 6.90773 3.875 6.24967 3.875C5.42162 3.875 4.72849 4.15278 4.1703 4.70833C3.61211 5.26389 3.33301 5.95833 3.33301 6.79167C3.33301 7.2725 3.43023 7.75806 3.62467 8.24833C3.81912 8.73875 4.16634 9.29993 4.66634 9.93188C5.16634 10.5638 5.8469 11.3069 6.70801 12.161C7.56912 13.0152 8.66634 14.0449 9.99967 15.25Z"
-        fill="#1C1B1F"
-      />
-    </svg>
-  );
-}
-
-function FavoriteFilledIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 16 15" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
-      <path d="M8.00016 14.939L7.08037 14.1121C5.69898 12.8589 4.55662 11.782 3.65329 10.8815C2.74995 9.98076 2.03412 9.17917 1.50579 8.47667C0.977455 7.77431 0.608357 7.13354 0.398496 6.55437C0.188496 5.97535 0.0834961 5.38778 0.0834961 4.79167C0.0834961 3.60903 0.482246 2.61889 1.27975 1.82125C2.07738 1.02375 3.06752 0.625 4.25016 0.625C4.97766 0.625 5.66516 0.795139 6.31266 1.13542C6.96016 1.47569 7.52266 1.96368 8.00016 2.59938C8.47766 1.96368 9.04016 1.47569 9.68766 1.13542C10.3352 0.795139 11.0227 0.625 11.7502 0.625C12.9328 0.625 13.9229 1.02375 14.7206 1.82125C15.5181 2.61889 15.9168 3.60903 15.9168 4.79167C15.9168 5.38778 15.8118 5.97535 15.6018 6.55437C15.392 7.13354 15.0229 7.77431 14.4945 8.47667C13.9662 9.17917 13.2517 9.98076 12.351 10.8815C11.4504 11.782 10.3068 12.8589 8.91996 14.1121L8.00016 14.939Z" fill="#00B7AC" />
     </svg>
   );
 }

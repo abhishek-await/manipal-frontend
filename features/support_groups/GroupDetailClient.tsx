@@ -741,6 +741,13 @@ export default function GroupDetailClient({
     return true;
   };
 
+  const stats = {
+    totalPosts: group?.totalPosts,
+    members: group?.members,
+    growthPercentage: group?.growthPercentage,
+    experts: group?.experts,
+  };
+
 
   return (
     <>
@@ -912,7 +919,7 @@ export default function GroupDetailClient({
               <>
                 <div className="absolute inset-0 z-20 bg-white/70" />
                 <div className="absolute left-1/2 transform -translate-x-1/2 bottom-6 z-30">
-                  <JoinPromptCard onJoin={() => router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`)} />
+                  <JoinPromptCard onJoin={() => router.push(`/login?next=${encodeURIComponent(`/group/${groupId}`)}`)} stats={stats} />
                 </div>
               </>
             )}
@@ -1069,7 +1076,7 @@ export default function GroupDetailClient({
           {/* About section for logged-in users (unchanged) */}
           {currentUser && (
             <div className="mt-6 px-4">
-              <div className="mx-auto w-full rounded-[12px] border border-[#E5E7EB] bg-white p-4">
+              <div className="mx-auto w-full rounded-[12px] border border-[#E5E7EB] bg-[#F7F7F7] p-4">
                 <h3 className="text-[20px] leading-6 font-bold text-[#18448A]">About this group</h3>
                 <p className="mt-3 text-[14px] leading-5 text-[#54555A]">{group?.description}</p>
                 <div className="mt-4 space-y-1 text-[14px] leading-[22px] text-[#333333]">
@@ -1087,12 +1094,49 @@ export default function GroupDetailClient({
                   </p>
                 </div>
 
-                <button
+                <div className="">
+                  <div className="mt-4 space-y-3 border border-[#E5E7EB] rounded-lg bg-white">
+                    <h2 className="text-[14px] text-[#18448A] px-3 mt-3">Moderators & Experts</h2>
+                    <div className="w-full mx-auto p-3 flex items-start gap-3">
+                      <div className="w-12 h-12 rounded-full bg-[#06AD9B1f] flex items-center justify-center">
+                        <Image src="/avatars/dr1.png" alt="Dr Sarah" width={44} height={44} className="rounded-full object-cover" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="font-bold text-[#333333] text-sm">Dr. Sarah Johnson</div>
+                          <div className="text-xs text-[#16AF9F] bg-[#ECFDF6] px-2 py-0.5 rounded-full">Verified</div>
+                        </div>
+                        <div className="text-xs text-[#333333]">Endocrinologies</div>
+                        <div className="text-xs text-[#54555A] mt-1">15+ years experience</div>
+                      </div>
+                    </div>
+      
+                    <div className="w-full mx-auto p-3 flex items-start gap-3">
+                      <div className="w-12 h-12 rounded-full bg-[#06AD9B1f] flex items-center justify-center">
+                        <Image src="/avatars/dr2.png" alt="Dr Sandeep" width={44} height={44} className="rounded-full object-cover" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-[#333333] text-sm">Dr. Sandeep Sharma</div>
+                        <div className="text-xs text-[#333333]">Cardiologist</div>
+                        <div className="text-xs text-[#54555A] mt-1">8+ years experience</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 mb-4">
+                  <GroupStatsCard
+                    postsThisWeek={stats?.totalPosts ?? 45}
+                    activeMembers={stats?.members ?? 340}
+                    monthlyGrowth={stats?.growthPercentage ?? "12%"}
+                    expertSessions={stats?.experts ?? 8}
+                  />
+                </div>
+                {/* <button
                   onClick={() => router.push(`/support-groups/groups/${groupId}/about`)}
                   className="mt-4 h-11 w-full rounded-[8px] border border-[#034EA1] text-[14px] font-medium text-[#333333] focus:outline-none focus:ring-2 focus:ring-[#034EA1]"
                 >
                   View more details
-                </button>
+                </button> */}
               </div>
             </div>
           )}
@@ -1193,12 +1237,12 @@ export function GroupStatsCard({
   expertIcon?: string;
 }) {
   return (
-    <div className="mx-auto w-full rounded-2xl p-4">
+    <div className="mx-auto w-full rounded-2xl p-4 bg-white">
       <div className="grid grid-cols-2 gap-4">
         <StatTile iconSrc={postsIcon} iconAlt="Posts" number={postsThisWeek} label="Posts this week" />
         <StatTile iconSrc={membersIcon} iconAlt="Members" number={activeMembers} label="Active members" />
-        {/* <StatTile iconSrc={growthIcon} iconAlt="Growth" number={monthlyGrowth} label="Monthly growth" />
-        <StatTile iconSrc={expertIcon} iconAlt="Experts" number={expertSessions} label="Expert sessions" /> */}
+        <StatTile iconSrc={growthIcon} iconAlt="Growth" number={monthlyGrowth} label="Monthly growth" />
+        <StatTile iconSrc={expertIcon} iconAlt="Experts" number={expertSessions} label="Expert sessions" />
       </div>
     </div>
   );

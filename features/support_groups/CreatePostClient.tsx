@@ -337,7 +337,7 @@ export default function CreatePostClient({
               ref={textareaRef}
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Share your thoughts..."
+              placeholder="Start a discussion..."
               rows={8}
               disabled={loading} // Add this
               onFocus={onFocusTextarea}
@@ -417,7 +417,7 @@ export default function CreatePostClient({
               <div className="w-6 h-6 relative">
                 <Image src="/photo.svg" alt="photo" width={24} height={24} />
               </div>
-              <div className="text-sm text-[#6B7280]">Supports images (up to 1MB)</div>
+              <div className="text-sm text-[#18448A]">Add an Image</div>
             </button>
             <div className="w-[72px] flex items-center justify-end">
               <button

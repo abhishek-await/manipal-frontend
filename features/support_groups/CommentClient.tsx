@@ -761,10 +761,10 @@ export default function CommentClient({
 
       {/* Comments header */}
       <div className="px-4 pt-4 pb-2">
-        <div className="text-xs text-gray-500">
-          {visibleReplies.length > 0 ? `${visibleReplies.length} comment${visibleReplies.length === 1 ? "" : "s"}` : "No comments"}
-        </div>
-        <div className="mt-1 text-[18px] font-bold">Most Recent</div>
+        {/* <div className="text-xs text-gray-500">
+          {visibleReplies.length > 0 ? `${visibleReplies.length}` : "0"}
+        </div> */}
+        <div className="mt-1 text-[18px] font-bold">{`Comments (${visibleReplies.length > 0 ? `${visibleReplies.length}` : "0"})`}</div>
       </div>
 
       <NotificationBanner />

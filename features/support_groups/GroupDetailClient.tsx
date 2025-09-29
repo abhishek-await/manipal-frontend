@@ -164,7 +164,7 @@ export default function GroupDetailClient({
       setTimeout(() => {
         setShowSuccessToast(false);
         setSuccessStatus(null);
-      }, 3000);
+      }, 5000);
     }
 
     if (s) {
@@ -733,10 +733,11 @@ export default function GroupDetailClient({
       setJoinRequiredMeta(meta ?? null);
       setJoinRequiredAction((meta && meta.type) ?? null); // optional
       setShowJoinRequiredModal(true);
-      return false;
+      // We showed the modal -> parent handled it (PostCard should not navigate)
+      return true;
     }
 
-    // allowed
+    // allowed: run onPass (if provided) and indicate handled
     if (onPass) onPass();
     return true;
   };
@@ -1084,10 +1085,10 @@ export default function GroupDetailClient({
                     <span className="font-bold">Created:</span>
                     <span className="ml-1 font-normal">{formatCreated((group as any)?.createdText)}</span>
                   </p>
-                  <p>
+                  {/* <p>
                     <span className="font-bold">Meeting Type:</span>
                     <span className="ml-1 font-normal">{(group as any)?.meeting_type ?? "Hybrid"}</span>
-                  </p>
+                  </p> */}
                   <p>
                     <span className="font-bold">Category:</span>
                     <span className="ml-1 font-normal">{(group as any)?.category?.name ?? "Chronic Conditions"}</span>
@@ -1192,21 +1193,23 @@ export default function GroupDetailClient({
           </div>
         )}
       </div>
-      <JoinRequiredModal
+            <JoinRequiredModal
         open={showJoinRequiredModal}
         onClose={() => setShowJoinRequiredModal(false)}
         onJoin={async () => {
           // close modal then run existing join flow
           setShowJoinRequiredModal(false);
           await handleJoinAction();
-          // optional: if user attempted a specific action before joining, you can resume it here
-          // e.g., if (joinRequiredMeta?.postId && joinRequiredMeta.type === "comment") router.push(...)
+
+          // resume the user's attempted action if any
           if (joinRequiredMeta?.type === "comment" && joinRequiredMeta?.postId) {
-            router.push(`/support-group/${groupId}/post/${joinRequiredMeta.postId}/comment`);
+            // NOTE: PostCard uses `/support-group/${postId}/comment` — reuse that exact path
+            router.push(`/support-group/${joinRequiredMeta.postId}/comment`);
           } else if (joinRequiredMeta?.type === "create") {
             router.push(`/support-group/${groupId}/create-post`);
           } else if (joinRequiredMeta?.type === "like") {
-            // nothing to do — the optimistic like was blocked; user can click again
+            // For likes: we typically don't auto-like after join (user can tap again).
+            // Optionally you could call the like API here with joinRequiredMeta.postId.
           }
         }}
         actionLabel={joinRequiredAction === "create" ? "create a post" : joinRequiredAction === "comment" ? "view comments" : joinRequiredAction === "like" ? "like a post" : null}
@@ -1357,9 +1360,72 @@ function SuccessOverlay({ image, onClose }: { image?: string | null; onClose?: (
   );
 }
 
+function SuccessToast({
+  image,
+  onClose,
+  status,
+}: {
+  image?: string | null;
+  status?: "approved" | "pending" | null;
+  onClose?: () => void;
+}) {
+  const isPending = status === "pending";
+  const text = isPending
+    ? "Your post is pending review"
+    : "Your post has been shared in the group feed";
 
-function SuccessToast({ image, onClose, status }: { image?: string | null, status?: 'approved' | 'pending' | null, onClose?: () => void }) {
-  const text = status === "pending" ? "Your post is pending review" : "Your post has been shared in the group feed";
+  // debug log
+  useEffect(() => {
+    console.log("SuccessToast status:", status, "isPending:", isPending);
+  }, [status, isPending]);
+
+  const containerStyle: React.CSSProperties = isPending
+    ? {
+        backgroundColor: "#FFFBEB", // use backgroundColor explicitly
+        borderColor: "#FBBF24",
+        borderWidth: 1,
+        borderStyle: "solid",
+        boxShadow: "0px 4px 16px rgba(16, 11, 39, 0.06)",
+        borderRadius: 12,
+        padding: "8px 12px",
+      }
+    : {
+        backgroundColor: "#F6FFF9",
+        borderColor: "#48C1B5",
+        borderWidth: 1,
+        borderStyle: "solid",
+        boxShadow: "0px 4px 16px rgba(16, 11, 39, 0.08)",
+        borderRadius: 12,
+        padding: "8px 12px",
+      };
+
+  const iconCircleStyle: React.CSSProperties = isPending
+    ? {
+        width: 36,
+        height: 36,
+        borderRadius: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        // Use backgroundImage for gradient and fallback color
+        backgroundColor: "#FBBF24",
+        backgroundImage:
+          "linear-gradient(180deg, #FBBF24 0%, #FB923C 100%)",
+        boxSizing: "border-box",
+      }
+    : {
+        width: 36,
+        height: 36,
+        borderRadius: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#48CA93",
+        backgroundImage:
+          "linear-gradient(180deg, #48CA93 0%, #48BACA 100%)",
+        boxSizing: "border-box",
+      };
+
   return (
     <motion.div
       initial={{ y: 32, opacity: 0 }}
@@ -1369,58 +1435,41 @@ function SuccessToast({ image, onClose, status }: { image?: string | null, statu
       className="fixed bottom-6 left-1/2 z-[70] transform -translate-x-1/2 pointer-events-auto"
       style={{ width: 342, maxWidth: "calc(100% - 48px)" }}
       onClick={() => onClose?.()}
+      // data attribute to make it easier to inspect in DevTools
+      data-status={status ?? "none"}
     >
-      <div
-        className="flex items-center gap-3"
-        style={{
-          background: "#F6FFF9",
-          border: "1px solid #48C1B5",
-          boxShadow: "0px 4px 16px rgba(16, 11, 39, 0.08)",
-          borderRadius: 12,
-          padding: "8px 12px",
-          alignItems: "center",
-        }}
-      >
-        {/* check icon circle (24x24 inside) */}
-        <div style={{
-          width: 36,
-          height: 36,
-          borderRadius: 9999,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "linear-gradient(180deg, #48CA93 0%, #48BACA 100%)",
-          boxSizing: "border-box",
-        }}>
-          {/* small inner white check */}
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path d="M20 7L10 18l-6-6" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+      <div className="flex items-center gap-3" style={containerStyle}>
+        <div style={iconCircleStyle}>
+          {isPending ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path d="M12 7v6l4 2" stroke="#FFF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="#FFF" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path d="M20 7L10 18l-6-6" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
         </div>
 
-        {/* optional thumbnail */}
-        {/* {image ? (
-          <img src={image} alt="thumb" style={{ width: 44, height: 28, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
-        ) : null} */}
-
-        {/* text — 12px regular */}
-        <div style={{
-          fontFamily: "'Helvetica Neue', Arial, sans-serif",
-          fontWeight: 400,
-          fontSize: 12,
-          lineHeight: "12px",
-          color: "#222222",
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}>
+        <div
+          style={{
+            fontFamily: "'Helvetica Neue', Arial, sans-serif",
+            fontWeight: 400,
+            fontSize: 12,
+            lineHeight: "12px",
+            color: "#222222",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
           {text}
         </div>
       </div>
     </motion.div>
   );
 }
-
 
 function JoinRequiredModal({
   open,

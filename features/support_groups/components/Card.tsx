@@ -283,12 +283,12 @@ export default function SupportGroupCard({
                 <span className="text-sm text-[#54555A]">({fmt(reviews) ?? 0})</span>
               </div>
 
-              <div className="px-4">
+              {/* <div className="px-4">
                 <GroupStatsCard
                   postsThisWeek={totalPosts?? 45}
                   activeMembers={members ?? 340}
                 />
-              </div>
+              </div> */}
 
               {/* <div className="flex items-center text-[#54555A]">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -307,7 +307,7 @@ export default function SupportGroupCard({
               </div> */}
             </div>
 
-            {/* <div className="mt-4 flex items-center gap-6 text-[#54555A]">
+            <div className="mt-4 flex items-center gap-6 text-[#54555A]">
               <div className="flex items-center gap-2">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#54555A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -323,7 +323,7 @@ export default function SupportGroupCard({
                 </svg>
                 <span className="text-sm font-bold">{fmt(experts) ?? 0} experts</span>
               </div>
-            </div> */}
+            </div>
 
             {/* // inside the isDetail block, replace the existing "mt-5 flex items-center" block with: */}
             <div className="mt-5 flex justify-center w-full">
@@ -404,7 +404,7 @@ export default function SupportGroupCard({
 
           <p className="mt-4 text-[14px] leading-[22px] text-[#54555A] line-clamp-3">{description}</p>
 
-          <div className="mt-3 flex items-center gap-6 text-[#54555A]">
+          <div className="mt-3 flex items-center gap-4 text-[#54555A]">
             {typeof members === "number" && (
               <div className="flex items-center">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#54555A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -430,7 +430,7 @@ export default function SupportGroupCard({
             )}
 
             {isMember && 
-              <div className="flex ml-12">
+              <div className="flex justify-end ml-8">
                 <Image src="/check_circle.svg" alt="Back" width={24} height={24} />
                 <span className="ml-2 text-[14px] leading-5 font-bold text-[#00B7AC] pt-0.5">Member</span>
               </div>

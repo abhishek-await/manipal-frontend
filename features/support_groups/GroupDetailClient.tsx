@@ -791,7 +791,7 @@ export default function GroupDetailClient({
               <div className="h-[200px] flex items-center justify-center text-sm text-gray-500">Loading group…</div>
             )}
             {/* Moderators & Experts + Stats (kept) */}
-            <div className="mt-4 px-4">
+            {/* <div className="mt-4 px-4">
               <h2 className="text-[20px] font-bold text-[#18448A]">Moderators & Experts</h2>
               <div className="mt-4 space-y-3 border border-[#E5E7EB] rounded-lg bg-white">
                 <div className="w-full mx-auto p-3 flex items-start gap-3">
@@ -819,7 +819,7 @@ export default function GroupDetailClient({
                   </div>
                 </div>
               </div>
-            </div>
+            </div> */}
             {/* <div className="mt-4 px-4">
               <GroupStatsCard
                 postsThisWeek={group?.totalPosts ?? 45}

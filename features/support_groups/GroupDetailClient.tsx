@@ -856,7 +856,7 @@ export default function GroupDetailClient({
           </div>
 
           {/* Posts area */}
-          <div ref={feedRef} className="relative mt-2 px-4 space-y-4 pb-28">
+          <div ref={feedRef} className="relative mt-2 px-4 space-y-4 pb-28" style={{ minHeight: !currentUser ? '750px' : 'auto' }}>
               {sortedPosts.length === 0 && !loading && (
                 <div className="text-center text-sm text-[#666] py-8">No posts yet.</div>
               )}

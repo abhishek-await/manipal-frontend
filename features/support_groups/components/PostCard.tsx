@@ -60,6 +60,12 @@ export default function PostCard({
   const [pending, setPending] = useState(false); // for like
   const [navPending, setNavPending] = useState(false); // for navigation feedback (click -> push)
 
+  // Report flow state (NEW)
+  const [reportOpen, setReportOpen] = useState(false);
+  const [selectedReason, setSelectedReason] = useState<string | null>(null);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportSuccess, setReportSuccess] = useState(false);
+
   // Menu state
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -342,6 +348,45 @@ export default function PostCard({
   // For reply count display: parent controls if replyCountProp is provided (not undefined).
   const replyCountDisplay = typeof replyCountProp === "number" ? replyCountProp : replyCountLocal;
 
+  // --- Report flow functions (NEW) ---
+  const openReport = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setMenuOpen(false);
+    setReportOpen(true);
+    setSelectedReason(null);
+  };
+
+  const closeReport = () => {
+    setReportOpen(false);
+    setSelectedReason(null);
+    setReportSubmitting(false);
+  };
+
+  const closeSuccess = () => {
+    setReportSuccess(false);
+    // close everything
+    setReportOpen(false);
+    setSelectedReason(null);
+  };
+
+  const submitReport = async () => {
+    if (!selectedReason) return;
+    setReportSubmitting(true);
+    try {
+      // Using the API method you provided
+      // it expects (postId, reason) as arguments in your snippet
+      await groupApi.reportPost(String(id), selectedReason);
+      setReportSuccess(true);
+    } catch (err) {
+      console.error("report failed", err);
+      const msg = (err as any)?.message ?? "Failed to submit report.";
+      // simple fallback for error UI — you can replace with toasts
+      alert(msg);
+    } finally {
+      setReportSubmitting(false);
+    }
+  };
+
   return (
     <Card
       className={`w-full border border-gray-200 shadow-sm ${className} relative transition-transform ${navPending ? "opacity-70 pointer-events-none" : "hover:shadow-md"}`}
@@ -411,9 +456,8 @@ export default function PostCard({
                       role="menuitem"
                       type="button"
                       onClick={(e) => {
-                        e.stopPropagation();
-                        setMenuOpen(false);
-                        // TODO: implement report flow later
+                        // open the report bottom sheet
+                        openReport(e);
                       }}
                       className="w-full text-left px-3 py-2 hover:bg-gray-50 transition"
                     >
@@ -488,6 +532,136 @@ export default function PostCard({
           </div>
         ) : null}
       </CardContent>
+
+      {/* ---------------------------
+          Report Bottom Sheet (choices)
+          --------------------------- */}
+      {reportOpen && !reportSuccess && (
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-center"
+          aria-modal="true"
+          role="dialog"
+          onClick={() => closeReport()}
+        >
+          {/* overlay */}
+          <div className="absolute inset-0 bg-black/30" />
+
+          <div
+            className="relative w-full max-w-md rounded-t-xl bg-white p-4 border border-gray-100 z-50"
+            onClick={(e) => e.stopPropagation()}
+            style={{ boxShadow: "0 -8px 40px rgba(2,6,23,0.08)" }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-lg font-medium">Report</div>
+              <button
+                type="button"
+                className="p-1 rounded-full hover:bg-gray-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeReport();
+                }}
+                aria-label="Close report"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path d="M6 6L18 18M6 18L18 6" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                "The content is inappropriate",
+                "The content is misleading or false",
+                "The content is spam",
+                "Other",
+              ].map((label) => {
+                const selected = selectedReason === label;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    className={`w-full text-left px-4 py-3 rounded-lg border ${selected ? "border-blue-600 bg-white shadow-sm" : "border-gray-200 bg-white"} transition`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedReason(label);
+                    }}
+                  >
+                    <div className={`flex items-center justify-between`}>
+                      <div className={`${selected ? "font-semibold text-gray-900" : "text-gray-700"}`}>{label}</div>
+                      {selected ? (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+                          <path d="M20 6L9 17l-5-5" stroke="#0B5FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  submitReport();
+                }}
+                disabled={!selectedReason || reportSubmitting}
+                className={`w-full rounded-lg px-4 py-3 text-white ${selectedReason ? "bg-blue-700 hover:bg-blue-800" : "bg-gray-200 cursor-not-allowed"}`}
+              >
+                {reportSubmitting ? (
+                  <div className="flex items-center justify-center">
+                    <Spinner />
+                  </div>
+                ) : (
+                  "Submit"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------
+          Success Modal for Report
+          --------------------------- */}
+      {reportSuccess && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="absolute inset-0 bg-black/30" onClick={() => closeSuccess()} />
+
+          <div
+            className="relative z-50 w-full max-w-md min-h-60 pt-10 rounded-t-2xl bg-white p-6 text-center"
+            onClick={(e) => e.stopPropagation()}
+            style={{ boxShadow: "0 -8px 40px rgba(2,6,23,0.08)" }}
+          >
+            <button
+              type="button"
+              className="absolute top-3 right-3 p-1 rounded-full hover:bg-gray-100"
+              onClick={() => closeSuccess()}
+              aria-label="Close"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path d="M6 6L18 18M6 18L18 6" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+
+            <div className="flex flex-col items-center">
+              <div className="h-16 w-16 rounded-full bg-[#4ECDC4] flex items-center justify-center mb-4">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path d="M20 6L9 17l-5-5" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+
+              <div className="text-base font-semibold text-gray-900">Thank you for your feedback.</div>
+              <div className="text-sm text-gray-600 mt-1">The content has been reported and will be reviewed.</div>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

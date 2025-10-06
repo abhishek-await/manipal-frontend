@@ -332,4 +332,27 @@ export const groupApi = {
 
     return res.json();
   },
+
+  reportPost: async (postId: string, reason: string) => {
+    // const res = await authApi.fetchWithAuth(`${API_BASE_URL}/support-groups/replies/${postId}/report/`,{
+    //   method: "POST",
+    //   headers: { 'Content-Type': 'application/json',},
+    //   body: JSON.stringify(reason)
+    // });
+
+    // if (!res.ok) {
+    //   const text = await res.text().catch(() => '');
+    //   const err: any = new Error(`Error liking reply: ${res.status} ${text}`);
+    //   err.status = res.status;
+    //   err.body = text;
+    //   throw err;
+    // }
+
+    // return res.json();
+    const dummyRes = {
+      ok: true
+    }
+
+    return dummyRes
+  }
 };
